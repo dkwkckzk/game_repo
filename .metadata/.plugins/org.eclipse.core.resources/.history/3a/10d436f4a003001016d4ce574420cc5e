@@ -1,0 +1,69 @@
+package com.care.boot.game;
+
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
+import com.care.boot.gamedto.GameDTO;
+import com.care.boot.gamedto.PlayerStatsDTO;
+import com.care.boot.gamedto.GameRequest;
+import java.util.List;
+
+@Controller
+@RequestMapping("/game")
+public class GameController {
+    private final SimpMessagingTemplate messagingTemplate;
+    private final GameService gameService;
+
+    public GameController(SimpMessagingTemplate messagingTemplate, GameService gameService) {
+        this.messagingTemplate = messagingTemplate;
+        this.gameService = gameService;
+    }
+
+    @MessageMapping("/play")
+    public void play(GameRequest request) throws Exception {
+        String playerId = request.getPlayerId();
+        String move = request.getMove();
+        String mode = request.getMode();
+
+        if ("server".equals(mode)) {
+            processServerMode(playerId, move);
+        } else {
+            processPlayerMode(playerId, move);
+        }
+    }
+
+    @GetMapping("/stats")
+    @ResponseBody
+    public PlayerStatsDTO getPlayerStats(@RequestParam String playerId) {
+        return gameService.getPlayerStats(playerId);
+    }
+
+    @GetMapping("/ranking")
+    @ResponseBody
+    public List<PlayerStatsDTO> getRanking() {
+        return gameService.getRanking();
+    }
+
+    private void processServerMode(String playerId, String move) {
+        String serverMove = getRandomMove();
+        String result = determineWinner(move, serverMove);
+        gameService.saveGameResult(new GameDTO(0, playerId, "server", move, serverMove, result, null));
+        messagingTemplate.convertAndSend("/topic/result/" + playerId, new GameDTO(playerId, move, "server", serverMove, result, null));
+    }
+
+    private String getRandomMove() {
+        String[] moves = {"가위", "바위", "보"};
+        return moves[(int) (Math.random() * 3)];
+    }
+
+    private String determineWinner(String move1, String move2) {
+        if (move1.equals(move2)) return "무승부";
+        if ((move1.equals("가위") && move2.equals("보")) ||
+            (move1.equals("바위") && move2.equals("가위")) ||
+            (move1.equals("보") && move2.equals("바위"))) {
+            return "승리";
+        }
+        return "패배";
+    }
+}

@@ -1,0 +1,126 @@
+package com.care.boot.game;
+
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
+import com.care.boot.gamedto.GameDTO;
+import com.care.boot.gamedto.PlayerStatsDTO;
+import com.care.boot.gamedto.GameRequest;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+@Controller
+@RequestMapping("/game")
+public class GameController {
+    private final SimpMessagingTemplate messagingTemplate;
+    private final GameService gameService;
+    private final ConcurrentLinkedQueue<String> waitingPlayers = new ConcurrentLinkedQueue<>();
+    private final ConcurrentHashMap<String, String> gameMoves = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> opponentMap = new ConcurrentHashMap<>();
+
+    public GameController(SimpMessagingTemplate messagingTemplate, GameService gameService) {
+        this.messagingTemplate = messagingTemplate;
+        this.gameService = gameService;
+    }
+
+    // 🔹 WebSocket을 이용한 게임 플레이
+    @MessageMapping("/play")
+    public void play(GameRequest request) {
+        String playerId = request.getPlayerId();
+        String move = request.getMove();
+        String mode = (request.getMode() == null || request.getMode().isEmpty()) ? "server" : request.getMode(); // ✅ 기본 모드 설정
+
+        System.out.println("🎮 플레이 요청: " + playerId + " | 선택: " + move + " | 모드: " + mode);
+
+        if ("server".equals(mode)) {
+            processServerMode(playerId, move);
+        } else {
+            processPlayerMode(playerId, move);
+        }
+    }
+
+    // 🔹 특정 플레이어 전적 조회 (REST API)
+    @GetMapping("/stats")
+    @ResponseBody
+    public PlayerStatsDTO getPlayerStats(@RequestParam String playerId) {
+        return gameService.getPlayerStats(playerId);
+    }
+
+    // 🔹 전체 랭킹 조회 (REST API)
+    @GetMapping("/ranking")
+    @ResponseBody
+    public List<PlayerStatsDTO> getRanking() {
+        return gameService.getRanking();
+    }
+
+    // 🔹 특정 플레이어의 게임 기록 조회 (REST API)
+    @GetMapping("/history")
+    @ResponseBody
+    public List<GameDTO> getGameHistory(@RequestParam String playerId) {
+        return gameService.getGameHistory(playerId);
+    }
+
+    // ✅ 서버와 플레이하는 모드 (기본 동작)
+    private void processServerMode(String playerId, String move) {
+        String serverMove = getRandomMove();
+        String result = determineWinner(move, serverMove);
+        GameDTO gameDTO = new GameDTO(0, playerId, "server", move, serverMove, result, LocalDateTime.now());
+
+        gameService.saveGameResult(gameDTO);
+        messagingTemplate.convertAndSend("/topic/result/" + playerId, gameDTO);
+    }
+
+    // ✅ 플레이어 간 매칭 기능 추가
+    private void processPlayerMode(String playerId, String move) {
+        if (!opponentMap.containsKey(playerId)) {
+            // 매칭 대기열에 플레이어 추가
+            waitingPlayers.add(playerId);
+            messagingTemplate.convertAndSend("/topic/match", "🕐 " + playerId + " 매칭 대기 중...");
+        } else {
+            // 상대방이 매칭 완료됨
+            String opponentId = opponentMap.get(playerId);
+            gameMoves.put(playerId, move);
+
+            if (gameMoves.containsKey(opponentId)) {
+                // 두 플레이어가 모두 선택을 완료함 → 결과 계산
+                String opponentMove = gameMoves.remove(opponentId);
+                String result = determineWinner(move, opponentMove);
+                String opponentResult = determineWinner(opponentMove, move);
+
+                GameDTO playerGame = new GameDTO(0, playerId, opponentId, move, opponentMove, result, LocalDateTime.now());
+                GameDTO opponentGame = new GameDTO(0, opponentId, playerId, opponentMove, move, opponentResult, LocalDateTime.now());
+
+                gameService.saveGameResult(playerGame);
+                gameService.saveGameResult(opponentGame);
+
+                // 클라이언트로 결과 전송
+                messagingTemplate.convertAndSend("/topic/result/" + playerId, playerGame);
+                messagingTemplate.convertAndSend("/topic/result/" + opponentId, opponentGame);
+
+                // 매칭 정보 삭제
+                opponentMap.remove(playerId);
+                opponentMap.remove(opponentId);
+            }
+        }
+    }
+
+    // ✅ 랜덤 가위바위보 선택
+    private String getRandomMove() {
+        String[] moves = {"가위", "바위", "보"};
+        return moves[(int) (Math.random() * 3)];
+    }
+
+    // ✅ 승패 결정 로직
+    private String determineWinner(String move1, String move2) {
+        if (move1.equals(move2)) return "무승부";
+        if ((move1.equals("가위") && move2.equals("보")) ||
+            (move1.equals("바위") && move2.equals("가위")) ||
+            (move1.equals("보") && move2.equals("바위"))) {
+            return "승리";
+        }
+        return "패배";
+    }
+}

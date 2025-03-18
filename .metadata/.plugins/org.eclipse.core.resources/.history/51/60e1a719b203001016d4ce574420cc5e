@@ -1,0 +1,46 @@
+package com.care.boot.game;
+
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Controller;
+import com.care.boot.gamedto.GameDTO;
+import com.care.boot.gamedto.GameRequest;
+
+@Controller
+public class GameController {
+    private final SimpMessagingTemplate messagingTemplate;
+
+    public GameController(SimpMessagingTemplate messagingTemplate) {
+        this.messagingTemplate = messagingTemplate;
+    }
+
+    @MessageMapping("/play") // ✅ 클라이언트가 "/app/play"로 보낸 메시지를 처리
+    public void play(GameRequest request) {
+        String playerId = request.getPlayerId();
+        String move = request.getMove();
+
+        System.out.println("🎮 플레이어: " + playerId + ", 선택: " + move); // ✅ 요청 로그 추가
+
+        String serverMove = getRandomMove();
+        String result = determineWinner(move, serverMove);
+
+        // ✅ 서버에서 결과를 클라이언트에게 전송
+        messagingTemplate.convertAndSend("/topic/result/" + playerId, 
+            new GameDTO(playerId, move, "서버", serverMove, result, null));
+    }
+
+    private String getRandomMove() {
+        String[] moves = {"가위", "바위", "보"};
+        return moves[(int) (Math.random() * 3)];
+    }
+
+    private String determineWinner(String move1, String move2) {
+        if (move1.equals(move2)) return "무승부";
+        if ((move1.equals("가위") && move2.equals("보")) ||
+            (move1.equals("바위") && move2.equals("가위")) ||
+            (move1.equals("보") && move2.equals("바위"))) {
+            return "승리";
+        }
+        return "패배";
+    }
+}

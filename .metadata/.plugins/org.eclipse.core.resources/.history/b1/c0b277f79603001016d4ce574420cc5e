@@ -1,0 +1,31 @@
+package com.care.boot.dto;
+
+public class GameRequest {
+    private String playerId;  // 사용자 ID (로그인 ID)
+    private String move;      // 가위/바위/보 선택
+    private String mode;      // 게임 모드 (server: 서버 vs 사용자, player: 사용자 vs 사용자)
+
+    public String getPlayerId() {
+        return playerId;
+    }
+
+    public void setPlayerId(String playerId) {
+        this.playerId = playerId;
+    }
+
+    public String getMove() {
+        return move;
+    }
+
+    public void setMove(String move) {
+        this.move = move;
+    }
+
+    public String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode;
+    }
+}

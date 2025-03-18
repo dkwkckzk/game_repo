@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<libraryInfos>
+    <libraryInfo home="D:\Tools\Java\jdk-1.8" version="1.8.0_381">
+        <bootpath>
+            <entry path="D:\Tools\Java\jdk-1.8\jre\lib\resources.jar"/>
+            <entry path="D:\Tools\Java\jdk-1.8\jre\lib\rt.jar"/>
+            <entry path="D:\Tools\Java\jdk-1.8\jre\lib\jsse.jar"/>
+            <entry path="D:\Tools\Java\jdk-1.8\jre\lib\jce.jar"/>
+            <entry path="D:\Tools\Java\jdk-1.8\jre\lib\charsets.jar"/>
+            <entry path="D:\Tools\Java\jdk-1.8\jre\lib\jfr.jar"/>
+            <entry path="D:\Tools\Java\jdk-1.8\jre\classes"/>
+        </bootpath>
+        <extensionDirs>
+            <entry path="D:\Tools\Java\jdk-1.8\jre\lib\ext"/>
+            <entry path="C:\WINDOWS\Sun\Java\lib\ext"/>
+        </extensionDirs>
+        <endorsedDirs>
+            <entry path="D:\Tools\Java\jdk-1.8\jre\lib\endorsed"/>
+        </endorsedDirs>
+    </libraryInfo>
+    <libraryInfo home="C:\web\sts-4.22.1.RELEASE\plugins\org.eclipse.justj.openjdk.hotspot.jre.full.win32.x86_64_17.0.11.v20240426-1830" version="17.0.11"/>
+    <libraryInfo home="C:\web\sts-4.22.1.RELEASE\plugins\org.eclipse.justj.openjdk.hotspot.jre.full.win32.x86_64_17.0.11.v20240426-1830\jre" version="17.0.11"/>
+    <libraryInfo home="C:\Program Files\Amazon Corretto\jdk17.0.11_9" version="17.0.11"/>
+</libraryInfos>

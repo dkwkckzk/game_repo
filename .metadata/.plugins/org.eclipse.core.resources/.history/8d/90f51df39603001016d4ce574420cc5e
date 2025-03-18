@@ -1,0 +1,37 @@
+package com.care.boot.dto;
+
+public class GameResult {
+    private String playerId;   // 플레이어 ID
+    private String playerMove; // 플레이어 선택
+    private String opponentId; // 상대방 ID
+    private String opponentMove; // 상대방 선택
+    private String result;     // 결과 (승/패/무승부)
+
+    public GameResult(String playerId, String playerMove, String opponentId, String opponentMove, String result) {
+        this.playerId = playerId;
+        this.playerMove = playerMove;
+        this.opponentId = opponentId;
+        this.opponentMove = opponentMove;
+        this.result = result;
+    }
+
+    public String getPlayerId() {
+        return playerId;
+    }
+
+    public String getPlayerMove() {
+        return playerMove;
+    }
+
+    public String getOpponentId() {
+        return opponentId;
+    }
+
+    public String getOpponentMove() {
+        return opponentMove;
+    }
+
+    public String getResult() {
+        return result;
+    }
+}

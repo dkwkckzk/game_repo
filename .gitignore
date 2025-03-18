@@ -1,0 +1,15 @@
+target/
+*.log
+*.class
+*.jar
+*.war
+*.ear
+*.iml
+*.ipynb_checkpoints
+.DS_Store
+.env
+.idea/
+.vscode/
+node_modules/
+bin/
+build/

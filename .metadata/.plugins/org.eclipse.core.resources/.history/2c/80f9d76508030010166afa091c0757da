@@ -1,0 +1,48 @@
+package com.care.boot.websocket;
+
+import org.springframework.web.socket.*;
+import org.springframework.web.socket.handler.TextWebSocketHandler;
+import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class GameWebSocketHandler extends TextWebSocketHandler {
+    private final Map<WebSocketSession, Integer> scores = new ConcurrentHashMap<>();
+
+    @Override
+    public void afterConnectionEstablished(WebSocketSession session) {
+        scores.put(session, 0);
+        sendMessage(session, "게임에 오신 것을 환영합니다! '/start' 입력하여 시작하세요.");
+    }
+
+    @Override
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws IOException {
+        String payload = message.getPayload();
+        
+        if ("/start".equalsIgnoreCase(payload)) {
+            sendMessage(session, "게임이 시작되었습니다! '/score'로 점수 확인, '/end'로 종료하세요.");
+        } else if ("/score".equalsIgnoreCase(payload)) {
+            int score = scores.getOrDefault(session, 0);
+            sendMessage(session, "현재 점수: " + score);
+        } else if ("/end".equalsIgnoreCase(payload)) {
+            sendMessage(session, "게임 종료! 최종 점수: " + scores.get(session));
+            session.close();
+        } else {
+            scores.put(session, scores.getOrDefault(session, 0) + 1);
+            sendMessage(session, "점수 +1! 현재 점수: " + scores.get(session));
+        }
+    }
+
+    private void sendMessage(WebSocketSession session, String message) {
+        try {
+            session.sendMessage(new TextMessage(message));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+        scores.remove(session);
+    }
+}
