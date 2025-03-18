@@ -1,0 +1,91 @@
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ page import="java.util.UUID" %>
+<%
+    String playerId = UUID.randomUUID().toString(); // 사용자 식별을 위한 임시 ID
+%>
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>가위바위보 게임</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 50px;
+        }
+        button {
+            font-size: 20px;
+            padding: 10px 20px;
+            margin: 10px;
+            cursor: pointer;
+        }
+        #result {
+            font-size: 24px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h2>가위바위보 게임</h2>
+    <p>게임 모드를 선택하세요:</p>
+    <button onclick="selectMode('server')">서버 vs 사용자</button>
+    <button onclick="selectMode('player')">사용자 vs 사용자</button>
+    <br><br>
+    
+    <div id="match-status"></div>
+    
+    <div id="game-controls" style="display: none;">
+        <button onclick="sendMove('가위')">✌️ 가위</button>
+        <button onclick="sendMove('바위')">✊ 바위</button>
+        <button onclick="sendMove('보')">🖐 보</button>
+        <p id="result">결과가 여기에 표시됩니다.</p>
+    </div>
+
+    <script>
+        var socket = new SockJS('/game');
+        var stompClient = Stomp.over(socket);
+        var playerId = "<%= playerId %>";
+        var gameMode = "";
+
+        stompClient.connect({}, function() {
+            console.log("WebSocket 연결됨");
+
+            stompClient.subscribe('/topic/result/' + playerId, function(response) {
+                var result = JSON.parse(response.body);
+                document.getElementById("result").innerText = 
+                    "내 선택: " + result.playerMove + " | 상대 선택: " + result.serverMove + " | 결과: " + result.result;
+            });
+
+            stompClient.subscribe('/topic/match', function(response) {
+                document.getElementById("match-status").innerText = response.body;
+                if (response.body === "매칭 완료!") {
+                    document.getElementById("game-controls").style.display = "block";
+                }
+            });
+        });
+
+        function selectMode(mode) {
+            gameMode = mode;
+            document.getElementById("game-controls").style.display = "block";
+
+            if (mode === "player") {
+                stompClient.send("/app/match", {}, playerId);
+                document.getElementById("match-status").innerText = "매칭 중...";
+            }
+        }
+
+        function sendMove(move) {
+            if (gameMode === "") {
+                alert("먼저 게임 모드를 선택하세요.");
+                return;
+            }
+            
+            stompClient.send("/app/play", {}, JSON.stringify({ playerId: playerId, move: move, mode: gameMode }));
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+package com.care.boot.game;
+
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+@Controller
+@RequestMapping("/game")  // 컨트롤러 기본 경로 설정
+public class ViewController {
+
+    @GetMapping("")
+    public String showGamePage() {
+        return "game/game";  // 뷰 파일을 "WEB-INF/views/game/game.jsp"로 통일 가능
+    }
+}

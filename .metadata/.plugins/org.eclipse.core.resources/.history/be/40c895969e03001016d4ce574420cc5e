@@ -1,0 +1,96 @@
+package com.care.boot.controller;
+
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Controller;
+import com.care.boot.dto.GameRequest;
+import com.care.boot.dto.GameResult;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+@Controller
+public class GameController {
+    private final SimpMessagingTemplate messagingTemplate;
+    private final ConcurrentLinkedQueue<String> waitingPlayers = new ConcurrentLinkedQueue<>();
+    private final ConcurrentHashMap<String, String> gameMoves = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> opponentMap = new ConcurrentHashMap<>();
+
+    public GameController(SimpMessagingTemplate messagingTemplate) {
+        this.messagingTemplate = messagingTemplate;
+    }
+
+    @MessageMapping("/play")
+    public void play(GameRequest request) throws Exception {
+        String playerId = request.getPlayerId();  // 로그인한 ID 그대로 사용
+        String move = request.getMove();
+        String mode = request.getMode();
+
+        if ("server".equals(mode)) {
+            // 서버 vs 사용자 모드
+            String serverMove = getRandomMove();
+            String result = determineWinner(move, serverMove);
+            messagingTemplate.convertAndSend("/topic/result/" + playerId, 
+                new GameResult(playerId, move, "서버", serverMove, result));
+        } else {
+            // 사용자 vs 사용자 모드
+            if (!opponentMap.containsKey(playerId)) {
+                waitingPlayers.add(playerId);
+                messagingTemplate.convertAndSend("/topic/match", "매칭 대기 중...");
+            } else {
+                String opponentId = opponentMap.get(playerId);
+                gameMoves.put(playerId, move);
+
+                if (gameMoves.containsKey(opponentId)) {
+                    // 상대방도 입력 완료 → 결과 처리
+                    String opponentMove = gameMoves.remove(opponentId);
+
+                    String result = determineWinner(move, opponentMove);
+                    String opponentResult = determineWinner(opponentMove, move);
+
+                    messagingTemplate.convertAndSend("/topic/result/" + playerId, 
+                        new GameResult(playerId, move, opponentId, opponentMove, result));
+
+                    messagingTemplate.convertAndSend("/topic/result/" + opponentId, 
+                        new GameResult(opponentId, opponentMove, playerId, move, opponentResult));
+
+                    // 매칭 정보 정리
+                    opponentMap.remove(playerId);
+                    opponentMap.remove(opponentId);
+                }
+            }
+        }
+    }
+
+    @MessageMapping("/match")
+    public void match(String playerId) {
+        if (!waitingPlayers.isEmpty()) {
+            String opponentId = waitingPlayers.poll();
+
+            if (!opponentId.equals(playerId)) {
+                opponentMap.put(playerId, opponentId);
+                opponentMap.put(opponentId, playerId);
+                messagingTemplate.convertAndSend("/topic/match", "매칭 완료!");
+            } else {
+                waitingPlayers.add(playerId);
+            }
+        } else {
+            waitingPlayers.add(playerId);
+            messagingTemplate.convertAndSend("/topic/match", "매칭 대기 중...");
+        }
+    }
+
+    private String getRandomMove() {
+        String[] moves = {"가위", "바위", "보"};
+        return moves[(int) (Math.random() * 3)];
+    }
+
+    private String determineWinner(String move1, String move2) {
+        if (move1.equals(move2)) return "무승부";
+        if ((move1.equals("가위") && move2.equals("보")) ||
+            (move1.equals("바위") && move2.equals("가위")) ||
+            (move1.equals("보") && move2.equals("바위"))) {
+            return "승리";
+        }
+        return "패배";
+    }
+}

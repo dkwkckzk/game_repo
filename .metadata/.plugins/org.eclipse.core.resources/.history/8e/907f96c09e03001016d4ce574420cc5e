@@ -1,0 +1,97 @@
+package com.care.boot.dto;
+
+import java.sql.Timestamp;
+
+public class GameDTO {
+    private int gameId;         // 게임 고유 ID
+    private String player1Id;   // 첫 번째 플레이어 ID
+    private String player2Id;   // 두 번째 플레이어 ID (또는 'server')
+    private String player1Move; // 첫 번째 플레이어의 선택 (가위/바위/보)
+    private String player2Move; // 두 번째 플레이어의 선택 (가위/바위/보)
+    private String result;      // 결과 (승리, 패배, 무승부)
+    private Timestamp playDate; // 게임 플레이 날짜
+
+    // 기본 생성자
+    public GameDTO() {}
+
+    // 전체 필드를 포함하는 생성자
+    public GameDTO(int gameId, String player1Id, String player2Id, String player1Move, String player2Move, String result, Timestamp playDate) {
+        this.gameId = gameId;
+        this.player1Id = player1Id;
+        this.player2Id = player2Id;
+        this.player1Move = player1Move;
+        this.player2Move = player2Move;
+        this.result = result;
+        this.playDate = playDate;
+    }
+
+    // Getter & Setter
+    public int getGameId() {
+        return gameId;
+    }
+
+    public void setGameId(int gameId) {
+        this.gameId = gameId;
+    }
+
+    public String getPlayer1Id() {
+        return player1Id;
+    }
+
+    public void setPlayer1Id(String player1Id) {
+        this.player1Id = player1Id;
+    }
+
+    public String getPlayer2Id() {
+        return player2Id;
+    }
+
+    public void setPlayer2Id(String player2Id) {
+        this.player2Id = player2Id;
+    }
+
+    public String getPlayer1Move() {
+        return player1Move;
+    }
+
+    public void setPlayer1Move(String player1Move) {
+        this.player1Move = player1Move;
+    }
+
+    public String getPlayer2Move() {
+        return player2Move;
+    }
+
+    public void setPlayer2Move(String player2Move) {
+        this.player2Move = player2Move;
+    }
+
+    public String getResult() {
+        return result;
+    }
+
+    public void setResult(String result) {
+        this.result = result;
+    }
+
+    public Timestamp getPlayDate() {
+        return playDate;
+    }
+
+    public void setPlayDate(Timestamp playDate) {
+        this.playDate = playDate;
+    }
+
+    @Override
+    public String toString() {
+        return "GameDTO{" +
+                "gameId=" + gameId +
+                ", player1Id='" + player1Id + '\'' +
+                ", player2Id='" + player2Id + '\'' +
+                ", player1Move='" + player1Move + '\'' +
+                ", player2Move='" + player2Move + '\'' +
+                ", result='" + result + '\'' +
+                ", playDate=" + playDate +
+                '}';
+    }
+}

@@ -1,0 +1,51 @@
+package com.care.boot.gamedto;
+
+public class GameRequest {
+    private String playerId;  // 사용자 ID (로그인 ID)
+    private String move;      // 가위/바위/보 선택
+    private String mode = "server"; // 🔹 기본값 설정      // 게임 모드 (server: 서버 vs 사용자, player: 사용자 vs 사용자)
+
+    // 기본 생성자 (JSON 변환 시 필요)
+    public GameRequest() {}
+
+    // 전체 필드를 포함한 생성자
+    public GameRequest(String playerId, String move, String mode) {
+        this.playerId = playerId;
+        this.move = move;
+        this.mode = mode;
+    }
+
+    // Getter & Setter
+    public String getPlayerId() {
+        return playerId;
+    }
+
+    public void setPlayerId(String playerId) {
+        this.playerId = playerId;
+    }
+
+    public String getMove() {
+        return move;
+    }
+
+    public void setMove(String move) {
+        this.move = move;
+    }
+
+    public String getMode() {
+        return (mode == null || mode.isEmpty()) ? "server" : mode; // 🔹 null 방지
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode;
+    }
+
+    @Override
+    public String toString() {
+        return "GameRequest{" +
+                "playerId='" + playerId + '\'' +
+                ", move='" + move + '\'' +
+                ", mode='" + mode + '\'' +
+                '}';
+    }
+}

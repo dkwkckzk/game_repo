@@ -1,0 +1,5 @@
+package com.care.boot.dto;
+
+public class GameDTO {
+
+}

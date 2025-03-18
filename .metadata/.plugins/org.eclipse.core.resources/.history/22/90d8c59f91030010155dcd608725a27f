@@ -1,0 +1,37 @@
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ page import="com.care.boot.member.MemberDTO" %>
+<%
+    MemberDTO loginUser = (MemberDTO) session.getAttribute("loginUser");
+    if (loginUser == null) {
+        response.sendRedirect("login");
+        return;
+    }
+    String playerId = loginUser.getId();  // 로그인한 ID 그대로 사용
+    String userName = loginUser.getUserName();
+%>
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>가위바위보 게임</title>
+</head>
+<body>
+    <h2><%= userName %> 님의 가위바위보 게임</h2>
+    <p>당신의 게임 ID: <%= playerId %></p>
+
+    <button onclick="sendMove('가위')">✌️ 가위</button>
+    <button onclick="sendMove('바위')">✊ 바위</button>
+    <button onclick="sendMove('보')">🖐 보</button>
+    <p id="result">결과가 여기에 표시됩니다.</p>
+
+    <script>
+        var playerId = "<%= playerId %>";
+        var userName = "<%= userName %>";
+
+        function sendMove(move) {
+            stompClient.send("/app/play", {}, JSON.stringify({ playerId: playerId, userName: userName, move: move }));
+        }
+    </script>
+</body>
+</html>

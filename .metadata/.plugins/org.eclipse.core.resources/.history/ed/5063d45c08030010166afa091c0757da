@@ -1,0 +1,47 @@
+<%@ page language="java" contentType="text/html; charset=UTF-8"
+    pageEncoding="UTF-8"%>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c"%>
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>온라인 게임</title>
+<script>
+    let socket;
+
+    function connect() {
+        socket = new WebSocket("ws://localhost:8080/game");
+
+        socket.onmessage = function(event) {
+            const messageArea = document.getElementById("messages");
+            messageArea.innerHTML += "<p>" + event.data + "</p>";
+        };
+
+        socket.onclose = function() {
+            document.getElementById("messages").innerHTML += "<p>게임이 종료되었습니다.</p>";
+        };
+    }
+
+    function sendMessage() {
+        const input = document.getElementById("inputMessage");
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(input.value);
+            input.value = "";
+        }
+    }
+</script>
+</head>
+<body onload="connect()">
+    <c:import url="/header"/>
+    
+    <div align="center">
+        <h1>간단한 온라인 게임</h1>
+        <div id="messages" style="border:1px solid black; width: 50%; height: 200px; overflow-y: scroll;"></div>
+        <br>
+        <input type="text" id="inputMessage" placeholder="명령어 입력 (예: /start, /score, /end)">
+        <button onclick="sendMessage()">전송</button>
+    </div>
+    
+    <c:import url="/footer"/>
+</body>
+</html>

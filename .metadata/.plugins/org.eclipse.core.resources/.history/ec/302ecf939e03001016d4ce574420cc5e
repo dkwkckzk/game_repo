@@ -1,0 +1,29 @@
+package com.care.boot.game;
+
+import java.util.List;
+
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+import com.care.boot.dto.GameResult;
+import com.care.boot.dto.PlayerStats;
+
+@Mapper
+public interface GameMapper {
+
+    // 🔹 게임 결과 저장
+    void insertGameResult(GameResult gameResult);
+
+    // 🔹 특정 플레이어의 전적 조회
+    PlayerStats getPlayerStats(@Param("playerId") String playerId);
+
+    // 🔹 새로운 플레이어 전적 추가 (초기화)
+    void createPlayerStats(@Param("playerId") String playerId);
+
+    // 🔹 게임 결과에 따라 전적 업데이트
+    void updatePlayerStats(@Param("playerId") String playerId, @Param("result") String result);
+
+    // 🔹 전체 랭킹 조회 (승리 순 정렬)
+    List<PlayerStats> getRanking();
+
+}

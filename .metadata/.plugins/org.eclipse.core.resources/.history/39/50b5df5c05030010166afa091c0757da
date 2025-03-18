@@ -1,0 +1,5 @@
+package com.care.boot.config;
+
+public class GameWebSocketConfig {
+
+}
