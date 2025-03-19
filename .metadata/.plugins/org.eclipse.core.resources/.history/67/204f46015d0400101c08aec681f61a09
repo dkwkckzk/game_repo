@@ -1,0 +1,29 @@
+package com.care.boot.game;
+
+import org.springframework.web.socket.*;
+import org.springframework.web.socket.handler.TextWebSocketHandler;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class GameWebSocketHandler extends TextWebSocketHandler {
+    private static final Map<WebSocketSession, String> sessions = new ConcurrentHashMap<>();
+
+    @Override
+    public void afterConnectionEstablished(WebSocketSession session) {
+        String playerId = (String) session.getAttributes().get("playerId");
+        if (playerId != null) {
+            GameSessionManager.addUser(playerId); // ✅ 로그인 감지
+            sessions.put(session, playerId);
+            System.out.println("✅ " + playerId + " 접속 완료!");
+        }
+    }
+
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+        String playerId = sessions.remove(session);
+        if (playerId != null) {
+            GameSessionManager.removeUser(playerId); // ✅ 로그아웃 처리
+            System.out.println("❌ " + playerId + " 접속 종료!");
+        }
+    }
+}

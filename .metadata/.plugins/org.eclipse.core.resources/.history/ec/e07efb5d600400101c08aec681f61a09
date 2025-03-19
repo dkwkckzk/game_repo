@@ -1,0 +1,66 @@
+package com.care.boot.game;
+
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
+import com.care.boot.gamedto.GameDTO;
+import com.care.boot.gamedto.PlayerStatsDTO;
+import com.care.boot.gamedto.GameRequest;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Controller
+@RequestMapping("/game")
+public class GameController {
+    private final SimpMessagingTemplate messagingTemplate;
+    private final GameService gameService;
+    private final GameSessionManager sessionManager;
+
+    public GameController(SimpMessagingTemplate messagingTemplate, GameService gameService, GameSessionManager sessionManager) {
+        this.messagingTemplate = messagingTemplate;
+        this.gameService = gameService;
+        this.sessionManager = sessionManager;
+    }
+
+    // ✅ 플레이 요청 (서버 또는 플레이어와의 대결)
+    @MessageMapping("/play")
+    public void play(GameRequest request) {
+        String playerId = request.getPlayerId();
+        String move = request.getMove();
+        String mode = (request.getMode() == null || request.getMode().isEmpty()) ? "server" : request.getMode();
+        String opponent = request.getOpponent();
+
+        if ("server".equals(mode)) {
+            processServerMode(playerId, move);
+        } else {
+            processPlayerMode(playerId, move, opponent);
+        }
+    }
+
+    // ✅ 플레이어 모드 처리 (랜덤 매칭 포함)
+    private void processPlayerMode(String playerId, String move, String opponent) {
+        if ("random".equals(opponent)) {
+            opponent = sessionManager.findMatch(playerId);
+        }
+
+        if (opponent == null) {
+            messagingTemplate.convertAndSend("/topic/match", "❌ 상대방 없음. 대기 중...");
+            sessionManager.addToMatchQueue(playerId);
+            return;
+        }
+
+        String opponentMove = gameMoves.remove(opponent);
+        String result = determineWinner(move, opponentMove);
+        String opponentResult = determineWinner(opponentMove, move);
+
+        GameDTO playerGame = new GameDTO(0, playerId, opponent, move, opponentMove, result, LocalDateTime.now());
+        GameDTO opponentGame = new GameDTO(0, opponent, playerId, opponentMove, move, opponentResult, LocalDateTime.now());
+
+        gameService.saveGameResult(playerGame);
+        gameService.saveGameResult(opponentGame);
+
+        messagingTemplate.convertAndSend("/topic/result/" + playerId, playerGame);
+        messagingTemplate.convertAndSend("/topic/result/" + opponent, opponentGame);
+    }
+}

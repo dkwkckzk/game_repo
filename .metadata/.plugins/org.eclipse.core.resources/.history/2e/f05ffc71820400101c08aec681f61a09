@@ -1,0 +1,59 @@
+package com.care.boot.game;
+
+import org.springframework.stereotype.Component;
+import java.util.Iterator;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+@Component
+public class GameSessionManager {
+    private final Set<String> onlinePlayers = ConcurrentHashMap.newKeySet();
+    private final ConcurrentLinkedQueue<String> matchQueue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentHashMap<String, String> matchedPlayers = new ConcurrentHashMap<>();
+
+    public void addPlayer(String playerId) {
+        onlinePlayers.add(playerId);
+    }
+
+    public void removePlayer(String playerId) {
+        onlinePlayers.remove(playerId);
+        matchQueue.remove(playerId);
+        matchedPlayers.remove(playerId);
+    }
+
+    public Set<String> getOnlinePlayers() {
+        return Set.copyOf(onlinePlayers);
+    }
+
+    public void addToMatchQueue(String playerId) {
+        if (!matchQueue.contains(playerId)) {
+            matchQueue.add(playerId);
+        }
+    }
+
+    public synchronized String findOrWaitForOpponent(String playerId) {
+        Iterator<String> iterator = matchQueue.iterator();
+        while (iterator.hasNext()) {
+            String opponent = iterator.next();
+            if (!opponent.equals(playerId)) {
+                iterator.remove();
+                matchedPlayers.put(playerId, opponent);
+                matchedPlayers.put(opponent, playerId);
+                return opponent;
+            }
+        }
+        matchQueue.add(playerId);
+        return null;
+    }
+
+    public void setMatchedPlayers(String player1, String player2) {
+        matchedPlayers.put(player1, player2);
+        matchedPlayers.put(player2, player1);
+    }
+
+    public void clearMatch(String player1, String player2) {
+        matchedPlayers.remove(player1);
+        matchedPlayers.remove(player2);
+    }
+}

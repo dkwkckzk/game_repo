@@ -1,0 +1,154 @@
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ page import="com.care.boot.member.MemberDTO" %>
+<%
+    MemberDTO loginUser = (MemberDTO) session.getAttribute("loginUser");
+    if (loginUser == null) {
+        response.sendRedirect("login");
+        return;
+    }
+    String playerId = loginUser.getId();
+%>
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>가위바위보 게임</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 50px;
+        }
+        button {
+            font-size: 20px;
+            padding: 10px 20px;
+            margin: 10px;
+            cursor: pointer;
+        }
+        #result {
+            font-size: 24px;
+            margin-top: 20px;
+        }
+        select {
+            font-size: 18px;
+            margin: 10px;
+        }
+        #onlinePlayers {
+            font-size: 18px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h2><%= playerId %> 님의 가위바위보 게임</h2>
+
+    <label for="modeSelect">게임 모드 선택:</label>
+    <select id="modeSelect">
+        <option value="server">서버와 대결</option>
+        <option value="random">랜덤 플레이어와 대결</option>
+    </select>
+
+    <h3>온라인 플레이어</h3>
+    <ul id="onlinePlayers"></ul>
+
+    <h3>현재 상대: <span id="opponent">없음</span></h3>
+
+    <button onclick="sendMove('가위')">✌️ 가위</button>
+    <button onclick="sendMove('바위')">✊ 바위</button>
+    <button onclick="sendMove('보')">🖐 보</button>
+
+    <p id="result">결과가 여기에 표시됩니다.</p>
+
+    <script>
+        var playerId = "<%= playerId %>";
+        var opponent = null;
+        var socket = new SockJS('/game'); // ✅ WebSocket 엔드포인트
+        var stompClient = Stomp.over(socket);
+
+        stompClient.connect({}, function(frame) {
+            console.log("✅ WebSocket 연결 성공!", frame);
+
+            // ✅ 온라인 플레이어 목록 요청
+            stompClient.send("/app/onlinePlayers", {}, JSON.stringify({ playerId: playerId }));
+
+            // ✅ 온라인 플레이어 목록 구독
+            stompClient.subscribe('/topic/onlinePlayers', function(response) {
+                var players;
+                try {
+                    players = JSON.parse(response.body);
+                } catch (e) {
+                    console.error("❌ JSON 파싱 오류:", e);
+                    return;
+                }
+
+                var playerList = document.getElementById("onlinePlayers");
+                playerList.innerHTML = "";
+                players.forEach(function(player) {
+                    if (player !== playerId) { 
+                        var li = document.createElement("li");
+                        li.textContent = player;
+                        li.onclick = function() { setOpponent(player); };
+                        playerList.appendChild(li);
+                    }
+                });
+            });
+
+            // ✅ 매칭 결과 구독
+            stompClient.subscribe('/topic/match/' + playerId, function(response) {
+                var matchedOpponent;
+                try {
+                    matchedOpponent = JSON.parse(response.body).opponent;
+                } catch (e) {
+                    console.error("❌ 매칭 JSON 파싱 오류:", e);
+                    return;
+                }
+                opponent = matchedOpponent;
+                document.getElementById("opponent").innerText = opponent;
+            });
+
+            // ✅ 결과 구독
+            stompClient.subscribe('/topic/result/' + playerId, function(response) {
+                var gameResult;
+                try {
+                    gameResult = JSON.parse(response.body);
+                } catch (e) {
+                    console.error("❌ 결과 JSON 파싱 오류:", e);
+                    return;
+                }
+
+                document.getElementById("result").innerText = 
+                    "내 선택: " + (gameResult.playerMove || "❌ 알 수 없음") + 
+                    " | 상대 선택: " + (gameResult.opponentMove || "❌ 알 수 없음") + 
+                    " | 결과: " + (gameResult.result || "❌ 알 수 없음");
+            });
+
+        }, function(error) {
+            console.error("❌ WebSocket 연결 실패:", error);
+            alert("⚠ WebSocket 연결이 실패했습니다. 서버를 확인하세요.");
+        });
+
+        function setOpponent(selectedOpponent) {
+            opponent = selectedOpponent;
+            document.getElementById("opponent").innerText = selectedOpponent;
+        }
+
+        function sendMove(move) {
+            var selectedMode = document.getElementById("modeSelect").value;
+            if (stompClient && stompClient.connected) {  
+                stompClient.send("/app/play", {}, JSON.stringify({ 
+                    playerId: playerId, 
+                    move: move,
+                    mode: selectedMode,
+                    opponent: opponent 
+                }));
+            } else {
+                alert("⚠ WebSocket 연결이 끊어졌습니다. 페이지를 새로고침하세요.");
+                console.error("❌ WebSocket 연결 끊김");
+            }
+        }
+    </script>
+</body>
+</html>
