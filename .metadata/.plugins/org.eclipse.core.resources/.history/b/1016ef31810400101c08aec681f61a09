@@ -1,0 +1,49 @@
+package com.care.boot.game;
+
+import org.springframework.stereotype.Component;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+@Component
+public class GameSessionManager {
+    private final Set<String> onlinePlayers = ConcurrentHashMap.newKeySet(); // ✅ 온라인 플레이어 목록
+    private final ConcurrentLinkedQueue<String> matchQueue = new ConcurrentLinkedQueue<>(); // ✅ 매칭 대기열
+
+    // ✅ 플레이어가 로그인하면 온라인 상태 추가
+    public void addPlayer(String playerId) {
+        onlinePlayers.add(playerId);
+    }
+
+    // ✅ 플레이어가 로그아웃하면 제거
+    public void removePlayer(String playerId) {
+        onlinePlayers.remove(playerId);
+        matchQueue.remove(playerId); // 대기열에서도 제거
+    }
+
+    // ✅ 현재 온라인 유저 목록 가져오기 (불변 Set 반환)
+    public Set<String> getOnlinePlayers() {
+        return Set.copyOf(onlinePlayers);
+    }
+
+    // ✅ 매칭 대기열에 추가
+    public void addToMatchQueue(String playerId) {
+        if (!matchQueue.contains(playerId)) {
+            matchQueue.add(playerId);
+        }
+    }
+
+    // ✅ 랜덤 상대 찾기 (poll()로 안정적 제거)
+    public synchronized String findMatch(String playerId) {
+        Iterator<String> iterator = matchQueue.iterator();
+        while (iterator.hasNext()) {
+            String opponent = iterator.next();
+            if (!opponent.equals(playerId)) {
+                iterator.remove(); // ✅ 직접 제거
+                return opponent;
+            }
+        }
+        return null;
+    }
+
+}

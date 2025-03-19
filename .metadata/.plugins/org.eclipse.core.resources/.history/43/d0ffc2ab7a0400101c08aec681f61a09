@@ -1,0 +1,40 @@
+package com.care.boot.game;
+
+import org.springframework.stereotype.Component;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+@Component
+public class GameSessionManager {
+    private final Set<String> onlinePlayers = ConcurrentHashMap.newKeySet();
+    private final ConcurrentLinkedQueue<String> matchQueue = new ConcurrentLinkedQueue<>();
+
+    public void addPlayer(String playerId) {
+        onlinePlayers.add(playerId);
+    }
+
+    public void removePlayer(String playerId) {
+        onlinePlayers.remove(playerId);
+        matchQueue.remove(playerId);
+    }
+
+    public Set<String> getOnlinePlayers() {
+        return Set.copyOf(onlinePlayers);
+    }
+
+    public void addToMatchQueue(String playerId) {
+        if (!matchQueue.contains(playerId)) {
+            matchQueue.add(playerId);
+        }
+    }
+
+    public String findMatch(String playerId) {
+        for (String opponent : matchQueue) {
+            if (!opponent.equals(playerId)) {
+                return matchQueue.poll();
+            }
+        }
+        return null;
+    }
+}

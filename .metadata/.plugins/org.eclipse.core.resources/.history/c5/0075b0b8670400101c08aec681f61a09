@@ -1,0 +1,50 @@
+package com.care.boot.gamedto;
+
+public class GameRequest {
+    private String playerId;
+    private String move;
+    private String mode = "server";  // ✅ 기본값 설정
+    private String opponent; // ✅ 상대 플레이어 추가
+
+    public String getPlayerId() {
+        return playerId;
+    }
+
+    public void setPlayerId(String playerId) {
+        this.playerId = playerId;
+    }
+
+    public String getMove() {
+        return move;
+    }
+
+    public void setMove(String move) {
+        this.move = move;
+    }
+
+    public String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        this.mode = (mode == null || mode.isEmpty()) ? "server" : mode; // ✅ 기본값 설정
+    }
+
+    public String getOpponent() {  // ✅ opponent Getter 추가
+        return opponent;
+    }
+
+    public void setOpponent(String opponent) {  // ✅ opponent Setter 추가
+        this.opponent = opponent;
+    }
+
+    @Override
+    public String toString() {
+        return "GameRequest{" +
+                "playerId='" + playerId + '\'' +
+                ", move='" + move + '\'' +
+                ", mode='" + mode + '\'' +
+                ", opponent='" + opponent + '\'' +
+                '}';
+    }
+}
