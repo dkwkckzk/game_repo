@@ -10,6 +10,7 @@ hits INT,
 filename VARCHAR(255),
 PRIMARY KEY(no)
 )DEFAULT CHARSET=UTF8;
+aaaaaaddd
 
  */
 public class BoardDTO {
