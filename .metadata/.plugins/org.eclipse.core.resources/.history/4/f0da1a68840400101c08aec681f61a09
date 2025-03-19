@@ -1,0 +1,41 @@
+package com.care.boot.game;
+
+import org.springframework.stereotype.Component;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+@Component
+public class GameSessionManager {
+    private final Set<String> onlinePlayers = ConcurrentHashMap.newKeySet();
+    private final ConcurrentLinkedQueue<String> matchQueue = new ConcurrentLinkedQueue<>();
+
+    public void addPlayer(String playerId) {
+        onlinePlayers.add(playerId);
+    }
+
+    public void removePlayer(String playerId) {
+        onlinePlayers.remove(playerId);
+        matchQueue.remove(playerId);
+    }
+
+    public Set<String> getOnlinePlayers() {
+        return Set.copyOf(onlinePlayers);
+    }
+
+    public void addToMatchQueue(String playerId) {
+        if (!matchQueue.contains(playerId)) {
+            matchQueue.add(playerId);
+        }
+    }
+
+    // ✅ 수정된 랜덤 매칭 로직 (poll()로 안정적 제거)
+    public synchronized String findMatch(String playerId) {
+        String opponent;
+        do {
+            opponent = matchQueue.poll();  // 가장 먼저 대기한 플레이어를 가져옴
+        } while (opponent != null && opponent.equals(playerId));
+
+        return opponent;
+    }
+}

@@ -1,0 +1,113 @@
+package com.care.boot.game;
+
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
+import com.care.boot.gamedto.GameDTO;
+import com.care.boot.gamedto.PlayerStatsDTO;
+import com.care.boot.gamedto.GameRequest;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+
+@Controller
+@RequestMapping("/game")
+public class GameController {
+    private final SimpMessagingTemplate messagingTemplate;
+    private final GameService gameService;
+    private final GameSessionManager sessionManager;
+
+    // ✅ 상대방의 선택을 저장할 HashMap
+    private final ConcurrentHashMap<String, String> gameMoves = new ConcurrentHashMap<>();
+
+    public GameController(SimpMessagingTemplate messagingTemplate, GameService gameService, GameSessionManager sessionManager) {
+        this.messagingTemplate = messagingTemplate;
+        this.gameService = gameService;
+        this.sessionManager = sessionManager;
+    }
+
+    // ✅ 플레이 요청 (서버 또는 플레이어와의 대결)
+    @MessageMapping("/play")
+    public void play(GameRequest request) {
+        String playerId = request.getPlayerId();
+        String move = request.getMove();
+        String mode = (request.getMode() == null || request.getMode().isEmpty()) ? "server" : request.getMode();
+        String opponent = request.getOpponent();
+
+        if ("server".equals(mode)) {
+            processServerMode(playerId, move);
+        } else {
+            processPlayerMode(playerId, move, opponent);
+        }
+    }
+
+    // ✅ 서버 모드 처리
+    private void processServerMode(String playerId, String move) {
+        String serverMove = getRandomMove();
+        String result = determineWinner(move, serverMove);
+
+        GameDTO gameDTO = new GameDTO(0, playerId, "server", move, serverMove, result, LocalDateTime.now());
+        gameService.saveGameResult(gameDTO);
+
+        messagingTemplate.convertAndSend("/topic/result/" + playerId, gameDTO);
+    }
+
+    // ✅ 플레이어 모드 처리 (랜덤 매칭 포함)
+    private void processPlayerMode(String playerId, String move, String opponent) {
+        synchronized (this) {  // 🔹 동시 요청 방지 (Race Condition 해결)
+            if ("random".equals(opponent)) {
+                opponent = sessionManager.findMatch(playerId);
+            }
+
+            if (opponent == null) {
+                messagingTemplate.convertAndSend("/topic/match", "❌ 상대방 없음. 대기 중...");
+                sessionManager.addToMatchQueue(playerId);
+                return;
+            }
+
+            // 🔹 상대방이 온라인인지 확인 후 게임 진행
+            if (!sessionManager.isOnline(opponent)) {
+                messagingTemplate.convertAndSend("/topic/match", "❌ 상대방이 오프라인입니다. 다시 매칭하세요.");
+                sessionManager.addToMatchQueue(playerId);
+                return;
+            }
+
+            // ✅ 상대방의 선택을 저장
+            gameMoves.put(playerId, move);
+
+            if (gameMoves.containsKey(opponent)) {
+                String opponentMove = gameMoves.remove(opponent);
+                String result = determineWinner(move, opponentMove);
+                String opponentResult = determineWinner(opponentMove, move);
+
+                GameDTO playerGame = new GameDTO(0, playerId, opponent, move, opponentMove, result, LocalDateTime.now());
+                GameDTO opponentGame = new GameDTO(0, opponent, playerId, opponentMove, move, opponentResult, LocalDateTime.now());
+
+                gameService.saveGameResult(playerGame);
+                gameService.saveGameResult(opponentGame);
+
+                messagingTemplate.convertAndSend("/topic/result/" + playerId, playerGame);
+                messagingTemplate.convertAndSend("/topic/result/" + opponent, opponentGame);
+            }
+        }
+    }
+
+
+    // ✅ 랜덤 가위바위보 선택
+    private String getRandomMove() {
+        String[] moves = {"가위", "바위", "보"};
+        return moves[(int) (Math.random() * 3)];
+    }
+
+    // ✅ 승패 결정 로직
+    private String determineWinner(String move1, String move2) {
+        if (move1.equals(move2)) return "무승부";
+        if ((move1.equals("가위") && move2.equals("보")) ||
+            (move1.equals("바위") && move2.equals("가위")) ||
+            (move1.equals("보") && move2.equals("바위"))) {
+            return "승리";
+        }
+        return "패배";
+    }
+}

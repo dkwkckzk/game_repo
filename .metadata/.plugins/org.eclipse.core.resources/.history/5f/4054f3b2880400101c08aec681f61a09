@@ -1,0 +1,45 @@
+package com.care.boot.game;
+
+import org.springframework.stereotype.Component;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+@Component
+public class GameSessionManager {
+    private final Set<String> onlinePlayers = ConcurrentHashMap.newKeySet();
+    private final ConcurrentLinkedQueue<String> matchQueue = new ConcurrentLinkedQueue<>();
+
+    public void addPlayer(String playerId) {
+        onlinePlayers.add(playerId);
+    }
+
+    public void removePlayer(String playerId) {
+        onlinePlayers.remove(playerId);
+        matchQueue.remove(playerId);
+    }
+
+    public Set<String> getOnlinePlayers() {
+        return Set.copyOf(onlinePlayers);
+    }
+
+    // ✅ 중복 추가 방지
+    public synchronized void addToMatchQueue(String playerId) {
+        if (!matchQueue.contains(playerId)) {
+            matchQueue.add(playerId);
+            System.out.println("🕐 대기열 추가됨: " + playerId);
+        }
+    }
+
+    // ✅ 즉시 상대 찾기
+    public synchronized String findMatch(String playerId) {
+        for (String opponent : matchQueue) {
+            if (!opponent.equals(playerId)) {
+                matchQueue.remove(opponent);
+                matchQueue.remove(playerId); // 자신도 제거
+                return opponent;
+            }
+        }
+        return null;
+    }
+}

@@ -1,6 +1,9 @@
 package com.care.boot.gamedto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 import java.time.LocalDateTime;
 
 public class GameDTO {
@@ -23,9 +26,11 @@ public class GameDTO {
     private String result;
 
     @JsonProperty("playDate")
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")  // ✅ JSON 변환 시 포맷 적용
+    @JsonSerialize(using = LocalDateTimeSerializer.class)  // ✅ Jackson이 LocalDateTime 변환하도록 설정
     private LocalDateTime playDate;
 
-    // ✅ 기본 생성자 필요 (JSON 변환 시 필요)
+    // ✅ 기본 생성자 (JSON 변환 시 필요)
     public GameDTO() {}
 
     // ✅ 전체 필드를 포함하는 생성자
@@ -48,15 +53,13 @@ public class GameDTO {
     public String getResult() { return result; }
     public LocalDateTime getPlayDate() { return playDate; }
 
-    // ✅ JSON 직렬화를 위한 Setter 추가 (필수)
+    // ✅ JSON 직렬화를 위한 Setter 추가
     public void setGameId(int gameId) { this.gameId = gameId; }
     public void setPlayer1Id(String player1Id) { this.player1Id = player1Id; }
     public void setPlayer2Id(String player2Id) { this.player2Id = player2Id; }
     public void setPlayer1Move(String player1Move) { this.player1Move = player1Move; }
     public void setPlayer2Move(String player2Move) { this.player2Move = player2Move; }
     public void setResult(String result) { this.result = result; }
-    
-    // 🚀 **에러 해결: `setPlayDate()` 추가**
     public void setPlayDate(LocalDateTime playDate) { this.playDate = playDate; }
 
     @Override

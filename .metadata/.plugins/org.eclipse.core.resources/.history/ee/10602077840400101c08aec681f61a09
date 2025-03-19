@@ -1,0 +1,94 @@
+package com.care.boot.game;
+
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Controller;
+import com.care.boot.gamedto.GameDTO;
+import com.care.boot.gamedto.GameRequest;
+import java.time.LocalDateTime;
+import java.util.concurrent.ConcurrentHashMap;
+
+@Controller
+public class GameController {
+    private final SimpMessagingTemplate messagingTemplate;
+    private final GameService gameService;
+    private final GameSessionManager sessionManager;
+    private final ConcurrentHashMap<String, String> gameMoves = new ConcurrentHashMap<>();
+
+    public GameController(SimpMessagingTemplate messagingTemplate, GameService gameService, GameSessionManager sessionManager) {
+        this.messagingTemplate = messagingTemplate;
+        this.gameService = gameService;
+        this.sessionManager = sessionManager;
+    }
+
+    @MessageMapping("/play")
+    public void play(GameRequest request) {
+        String playerId = request.getPlayerId();
+        String move = request.getMove();
+        String mode = request.getMode();
+        String opponent = request.getOpponent();
+
+        System.out.println("🎮 플레이 요청: " + request);
+
+        if ("server".equals(mode)) {
+            processServerMode(playerId, move);
+        } else {
+            processPlayerMode(playerId, move, opponent);
+        }
+    }
+
+    private void processServerMode(String playerId, String move) {
+        String serverMove = getRandomMove();
+        String result = determineWinner(move, serverMove);
+
+        System.out.println("📢 서버 모드 진행: playerId=" + playerId + ", playerMove=" + move + ", serverMove=" + serverMove + ", result=" + result);
+
+        GameDTO gameDTO = new GameDTO(0, playerId, "server", move, serverMove, result, LocalDateTime.now());
+        gameService.saveGameResult(gameDTO);
+
+        messagingTemplate.convertAndSend("/topic/result/" + playerId, gameDTO);
+    }
+
+    private void processPlayerMode(String playerId, String move, String opponent) {
+        if ("random".equals(opponent)) {
+            opponent = sessionManager.findMatch(playerId);
+        }
+
+        if (opponent == null) {
+            sessionManager.addToMatchQueue(playerId);
+            messagingTemplate.convertAndSend("/topic/match/" + playerId, "❌ 상대방 없음. 대기 중...");
+            return;
+        }
+
+        gameMoves.put(playerId, move);
+        if (gameMoves.containsKey(opponent)) {
+            String opponentMove = gameMoves.remove(opponent);
+            String result = determineWinner(move, opponentMove);
+            String opponentResult = determineWinner(opponentMove, move);
+
+            GameDTO playerGame = new GameDTO(0, playerId, opponent, move, opponentMove, result, LocalDateTime.now());
+            GameDTO opponentGame = new GameDTO(0, opponent, playerId, opponentMove, move, opponentResult, LocalDateTime.now());
+
+            gameService.saveGameResult(playerGame);
+            gameService.saveGameResult(opponentGame);
+
+            messagingTemplate.convertAndSend("/topic/result/" + playerId, playerGame);
+            messagingTemplate.convertAndSend("/topic/result/" + opponent, opponentGame);
+        }
+    }
+
+    private String getRandomMove() {
+        String[] moves = {"가위", "바위", "보"};
+        return moves[(int) (Math.random() * 3)];
+    }
+
+    private String determineWinner(String move1, String move2) {
+        if (move1.equals(move2)) return "무승부";
+        if ((move1.equals("가위") && move2.equals("보")) ||
+            (move1.equals("바위") && move2.equals("가위")) ||
+            (move1.equals("보") && move2.equals("바위"))) {
+            return "승리";
+        }
+        return "패배";
+    }
+}
