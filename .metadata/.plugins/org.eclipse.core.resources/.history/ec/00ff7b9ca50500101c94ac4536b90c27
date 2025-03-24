@@ -1,0 +1,93 @@
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>🏅 랭킹</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background-color: #f8f9fa; }
+        table { width: 50%; margin: auto; border-collapse: collapse; background: white; }
+        th, td { padding: 10px; border: 1px solid #ccc; text-align: center; }
+        th { background: #007bff; color: white; }
+        tr:nth-child(even) { background: #f2f2f2; }
+    </style>
+</head>
+<body>
+
+    <h2>🏆 플레이어 랭킹</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>순위</th>
+                <th>플레이어</th>
+                <th>점수</th>
+                <th>승리</th>
+                <th>패배</th>
+            </tr>
+        </thead>
+        <tbody id="rankingTable">
+            <tr><td colspan='5'>데이터 로딩 중...</td></tr>
+        </tbody>
+    </table>
+
+    <br>
+    <button onclick="goToMatchGame()">🔄 매칭 페이지로 이동</button>
+
+    <script>
+    function fetchRanking() {
+        fetch('/api/ranking')
+            .then(response => response.json())
+            .then(data => {
+                console.log("📊 랭킹 데이터 확인:", data);
+
+                let rankingTable = document.getElementById("rankingTable");
+                rankingTable.innerHTML = ""; // 기존 데이터 삭제
+
+                if (!data || data.length === 0) {
+                    rankingTable.innerHTML = "<tr><td colspan='5'>데이터 없음</td></tr>";
+                    return;
+                }
+
+                let rank = 1;
+                let prevScore = null;
+
+                data.forEach((player, index) => {
+                    console.log(`🎯 플레이어 ${rank}:`, player);
+
+                    let playerId = player.playerId || "(데이터 없음)";
+                    let score = player.score || 0;
+                    let wins = player.wins || 0;
+                    let losses = player.losses || 0;
+
+                    // ✅ 점수가 다를 때만 순위(rank) 증가
+                    if (prevScore !== null && prevScore !== score) {
+                        rank = index + 1;
+                    }
+                    prevScore = score;
+
+                    let row = document.createElement("tr");
+
+                    row.innerHTML = `
+                        <td>${rank}</td>
+                        <td>${playerId}</td>
+                        <td>${score}</td>
+                        <td>${wins}</td>
+                        <td>${losses}</td>
+                    `;
+
+                    rankingTable.appendChild(row);
+                });
+            })
+            .catch(error => console.error("🚨 랭킹 조회 실패:", error));
+    }
+
+    function goToMatchGame() {
+        window.location.href = "/game/match";
+    }
+
+    window.onload = fetchRanking;
+    </script>
+
+</body>
+</html>

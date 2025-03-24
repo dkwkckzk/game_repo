@@ -1,0 +1,119 @@
+package com.care.boot.game;
+
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Controller;
+import com.care.boot.gamedto.GameDTO;
+import com.care.boot.gamedto.GameRequest;
+import java.time.LocalDateTime;
+import java.util.concurrent.ConcurrentHashMap;
+
+@Controller
+public class GameMatchController {
+    private final SimpMessagingTemplate messagingTemplate;
+    private final GameService gameService;
+    private final GameSessionManager sessionManager;
+
+    private final ConcurrentHashMap<String, String> opponentMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> gameMoves = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Integer> playerWins = new ConcurrentHashMap<>();
+
+    public GameMatchController(SimpMessagingTemplate messagingTemplate, GameService gameService, GameSessionManager sessionManager) {
+        this.messagingTemplate = messagingTemplate;
+        this.gameService = gameService;
+        this.sessionManager = sessionManager;
+    }
+
+    @MessageMapping("/play")
+    public void playMatch(GameRequest request) {
+        String playerId = request.getPlayerId();
+        String move = request.getMove();
+
+        if (!opponentMap.containsKey(playerId)) return;
+
+        String opponent = opponentMap.get(playerId);
+        gameMoves.put(playerId, move);
+
+        if (!gameMoves.containsKey(opponent)) return;
+
+        String opponentMove = gameMoves.get(opponent);
+        gameMoves.remove(opponent);
+        gameMoves.remove(playerId);
+
+        String result = determineWinner(move, opponentMove);
+        String opponentResult = determineWinner(opponentMove, move);
+
+        int playerScore = 0;
+        int opponentScore = 0;
+
+        if (result.equals("승리")) {
+            playerScore += 3;
+            opponentScore -= 2;
+        } else if (result.equals("패배")) {
+            playerScore -= 2;
+            opponentScore += 3;
+        }
+
+        playerWins.putIfAbsent(playerId, 0);
+        playerWins.putIfAbsent(opponent, 0);
+
+        if (result.equals("승리")) playerWins.put(playerId, playerWins.get(playerId) + 1);
+        if (result.equals("패배")) playerWins.put(opponent, playerWins.get(opponent) + 1);
+
+        if (playerWins.get(playerId) == 3) {
+            playerScore += 5;
+        } 
+        if (playerWins.get(opponent) == 3) {
+            opponentScore += 5;
+        }
+
+        gameService.updatePlayerScore(playerId, playerScore);
+        gameService.updatePlayerScore(opponent, opponentScore);
+
+        GameDTO playerGame = new GameDTO(0, playerId, opponent, move, opponentMove, result, LocalDateTime.now());
+        GameDTO opponentGame = new GameDTO(0, opponent, playerId, opponentMove, move, opponentResult, LocalDateTime.now());
+
+        gameService.saveGameResult(playerGame);
+        gameService.saveGameResult(opponentGame);
+
+        messagingTemplate.convertAndSend("/topic/result/" + playerId, playerGame);
+        messagingTemplate.convertAndSend("/topic/result/" + opponent, opponentGame);
+
+        if (playerWins.get(playerId) == 3) {
+            endGame(playerId, opponent);
+        } else if (playerWins.get(opponent) == 3) {
+            endGame(opponent, playerId);
+        }
+    }
+
+    private void endGame(String winner, String loser) {
+        resetGameState(winner, loser);
+        messagingTemplate.convertAndSend("/topic/match/end/" + winner, "🎉 3선승 완료! 다시 매칭을 선택하세요.");
+        messagingTemplate.convertAndSend("/topic/match/end/" + loser, "❌ 상대가 3승 달성! 다시 매칭을 선택하세요.");
+
+        sessionManager.clearMatchedPlayer(winner);
+        sessionManager.clearMatchedPlayer(loser);
+    }
+
+    private void resetGameState(String player1, String player2) {
+        opponentMap.remove(player1);
+        opponentMap.remove(player2);
+        playerWins.remove(player1);
+        playerWins.remove(player2);
+        gameMoves.remove(player1);
+        gameMoves.remove(player2);
+        
+        sessionManager.resetPlayerState(player1);
+        sessionManager.resetPlayerState(player2);
+    }
+
+    private String determineWinner(String move1, String move2) {
+        if (move1.equals(move2)) return "무승부";
+        if ((move1.equals("가위") && move2.equals("보")) ||
+            (move1.equals("바위") && move2.equals("가위")) ||
+            (move1.equals("보") && move2.equals("바위"))) {
+            return "승리";
+        }
+        return "패배";
+    }
+}

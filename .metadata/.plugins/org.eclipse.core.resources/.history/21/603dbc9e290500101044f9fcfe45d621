@@ -1,0 +1,70 @@
+<script>
+    var playerId = "<%= playerId %>";
+    var opponent = null;
+    var playerScore = 0;
+    var playerWins = 0;
+    var opponentWins = 0;
+    var gameCount = 0;
+    var seriesId = null; // ✅ 시리즈 ID 추가
+    var socket = new SockJS('/game');
+    var stompClient = Stomp.over(socket);
+
+    stompClient.connect({}, function() {
+        stompClient.subscribe('/topic/match/' + playerId, function(response) {
+            opponent = response.body;
+            if (opponent.startsWith('❌')) {
+                document.getElementById("status").innerText = opponent;
+            } else {
+                document.getElementById("status").innerText = "게임 시작! 상대: " + opponent;
+                document.getElementById("opponent").innerText = opponent;
+                enableGameButtons(true);
+                seriesId = new Date().getTime().toString(); // ✅ 시리즈 ID 생성
+            }
+        });
+
+        stompClient.subscribe('/topic/result/' + playerId, function(response) {
+            var gameResult = JSON.parse(response.body);
+            document.getElementById("result").innerText =
+                "내 선택: " + gameResult.player1Move + 
+                " | 상대 선택: " + gameResult.player2Move + 
+                " | 결과: " + gameResult.result;
+
+            if (opponent !== "server") {
+                if (gameResult.result === "승리") playerScore += 3;
+                else if (gameResult.result === "패배") playerScore -= 2;
+            }
+            document.getElementById("playerScore").innerText = playerScore;
+
+            if (playerScore >= 1000) document.getElementById("crown").style.display = 'inline';
+            else document.getElementById("crown").style.display = 'none';
+
+            gameCount++;
+            if (gameResult.result === "승리") playerWins++;
+            else if (gameResult.result === "패배") opponentWins++;
+
+            document.getElementById("playerWins").innerText = playerWins;
+            document.getElementById("opponentWins").innerText = opponentWins;
+            document.getElementById("gameCount").innerText = gameCount;
+
+            if (playerWins === 3 || opponentWins === 3) {
+                document.getElementById("status").innerText = "🎉 3승 달성! 게임 종료!";
+                enableGameButtons(false);
+                return;
+            }
+
+            document.getElementById("status").innerText = "다음 판을 선택하세요!";
+            enableGameButtons(true);
+        });
+    });
+
+    function sendMove(move) {
+        var mode = document.getElementById("modeSelect").value;
+        stompClient.send("/app/play", {}, JSON.stringify({ 
+            playerId: playerId, 
+            move: move, 
+            mode: mode, 
+            seriesId: seriesId // ✅ 시리즈 ID 포함
+        }));
+        document.getElementById("status").innerText = "결과 대기 중...";
+    }
+</script>

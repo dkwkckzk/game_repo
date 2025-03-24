@@ -1,0 +1,138 @@
+-- 🔹 외래 키 제약 조건 제거 (존재할 경우)
+ALTER TABLE game_history DROP FOREIGN KEY IF EXISTS fk_game_player1;
+ALTER TABLE game_history DROP FOREIGN KEY IF EXISTS fk_game_player2;
+ALTER TABLE player_stats DROP FOREIGN KEY IF EXISTS fk_stats_member;
+ALTER TABLE game_ranking DROP FOREIGN KEY IF EXISTS fk_ranking_member;
+ALTER TABLE game_match DROP FOREIGN KEY IF EXISTS fk_match_member;
+
+-- 🔹 테이블 삭제 (존재할 경우)
+DROP TABLE IF EXISTS game_match;
+DROP TABLE IF EXISTS game_ranking;
+DROP TABLE IF EXISTS game_history;
+DROP TABLE IF EXISTS player_stats;
+DROP TABLE IF EXISTS board;
+DROP TABLE IF EXISTS member;
+
+-- 🔹 데이터베이스 삭제 및 생성
+DROP DATABASE IF EXISTS test;
+CREATE DATABASE test;
+USE test;
+
+-- 🔹 게시판 테이블
+CREATE TABLE board (
+    no INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(100),
+    content VARCHAR(200),
+    id VARCHAR(20),
+    writedate VARCHAR(15),
+    hits INT DEFAULT 0,
+    filename VARCHAR(255)
+) DEFAULT CHARSET=UTF8;
+
+-- 🔹 회원 테이블
+CREATE TABLE member (
+    id VARCHAR(20) PRIMARY KEY,
+    pw VARCHAR(60) NOT NULL,
+    username VARCHAR(21) NOT NULL,
+    postcode VARCHAR(10),
+    address VARCHAR(300),
+    detailaddress VARCHAR(300),
+    mobile VARCHAR(20)
+) DEFAULT CHARSET=UTF8;
+
+-- 🔹 게임 기록 테이블
+CREATE TABLE game_history (
+    game_id INT AUTO_INCREMENT PRIMARY KEY,
+    player1_id VARCHAR(20) NOT NULL,
+    player2_id VARCHAR(20) NOT NULL,
+    player1_move ENUM('가위', '바위', '보') NOT NULL,
+    player2_move ENUM('가위', '바위', '보') NOT NULL,
+    result ENUM('승리', '패배', '무승부') NOT NULL,
+    play_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) DEFAULT CHARSET=UTF8;
+
+-- 🔹 플레이어 전적 테이블
+CREATE TABLE player_stats (
+    id VARCHAR(20) PRIMARY KEY,
+    total_games INT DEFAULT 0,
+    wins INT DEFAULT 0,
+    losses INT DEFAULT 0,
+    draws INT DEFAULT 0,
+    win_rate DECIMAL(5,2) GENERATED ALWAYS AS 
+        (CASE WHEN total_games > 0 THEN (wins / total_games) * 100 ELSE 0 END) STORED
+) DEFAULT CHARSET=UTF8;
+
+-- 🔹 게임 랭킹 테이블
+CREATE TABLE game_ranking (
+	id VARCHAR(20) PRIMARY KEY,
+	rank INT NOT NULL,
+	wins INT DEFAULT 0,
+	total_games INT DEFAULT 0,
+	win_rate FLOAT DEFAULT 0,
+	FOREIGN KEY (id) REFERENCES member(id) ON DELETE CASCADE
+) DEFAULT CHARSET=UTF8;
+
+-- 🔹 게임 매치 대기열 테이블
+CREATE TABLE game_match (
+	match_id INT AUTO_INCREMENT PRIMARY KEY,
+	player_id VARCHAR(20) NOT NULL UNIQUE,
+	join_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (player_id) REFERENCES member(id) ON DELETE CASCADE
+) DEFAULT CHARSET=UTF8;
+
+-- 🔹 외래 키 추가
+ALTER TABLE game_history
+ADD CONSTRAINT fk_game_player1 FOREIGN KEY (player1_id) REFERENCES member(id) ON DELETE CASCADE,
+ADD CONSTRAINT fk_game_player2 FOREIGN KEY (player2_id) REFERENCES member(id) ON DELETE CASCADE;
+
+ALTER TABLE player_stats
+ADD CONSTRAINT fk_stats_member FOREIGN KEY (id) REFERENCES member(id) ON DELETE CASCADE;
+
+-- 🔹 서버 계정 추가
+INSERT INTO member (id, pw, username) VALUES ('server', 'NOPASSWORD', '컴퓨터');
+
+
+
+
+-- 🔹 기존 테이블 수정 (player_stats)
+ALTER TABLE player_stats 
+ADD COLUMN score INT DEFAULT 0;
+
+-- 🔹 랭킹 조회 (점수 순으로 정렬)
+CREATE OR REPLACE VIEW ranking AS
+SELECT playerId, totalGames, wins, losses, draws, score, 
+       (wins * 100.0 / NULLIF(totalGames, 0)) AS winRate
+FROM player_stats
+ORDER BY score DESC, winRate DESC;
+
+-- 🔹 점수 업데이트 트리거
+DELIMITER $$
+
+CREATE TRIGGER update_score
+AFTER INSERT ON game_history
+FOR EACH ROW
+BEGIN
+    DECLARE scoreChange INT;
+
+    IF NEW.result = '승리' THEN
+        SET scoreChange = 3;
+    ELSEIF NEW.result = '패배' THEN
+        SET scoreChange = -2;
+    ELSE
+        SET scoreChange = 0;
+    END IF;
+
+    UPDATE player_stats
+    SET score = score + scoreChange
+    WHERE playerId = NEW.player1Id;
+END$$
+
+DELIMITER ;
+
+
+ALTER TABLE player_stats ADD COLUMN score INT DEFAULT 0;
+
+UPDATE player_stats SET score = 0;
+
+SELECT * FROM player_stats;
+

@@ -1,0 +1,57 @@
+package com.care.boot.game;
+
+import com.care.boot.gamedto.GameDTO;
+import com.care.boot.gamedto.PlayerStatsDTO;
+import org.springframework.stereotype.Service;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+
+@Service
+public class GameService {
+
+    private final GameMapper gameMapper;
+
+    public GameService(GameMapper gameMapper) {
+        this.gameMapper = gameMapper;
+    }
+
+    // ✅ 기존 saveGameResult 수정 (boolean isMatchWin 추가)
+    public void saveGameResult(GameDTO gameDTO, boolean isMatchWin) {
+        if (Objects.isNull(gameDTO.getPlayDate())) {
+            gameDTO.setPlayDate(LocalDateTime.now());
+        }
+
+        gameMapper.insertGameResult(gameDTO);
+        updatePlayerStats(gameDTO.getPlayer1Id(), gameDTO.getResult(), isMatchWin);
+        updatePlayerStats(gameDTO.getPlayer2Id(), getOppositeResult(gameDTO.getResult()), isMatchWin);
+    }
+
+    // ✅ 기존 updatePlayerStats 수정 (점수 반영 추가)
+    private void updatePlayerStats(String playerId, String result, boolean isMatchWin) {
+        if (!"server".equals(playerId)) {
+            Optional.ofNullable(gameMapper.getPlayerStats(playerId))
+                    .orElseGet(() -> {
+                        gameMapper.createPlayerStats(playerId);
+                        return gameMapper.getPlayerStats(playerId);
+                    });
+
+            gameMapper.updatePlayerStats(playerId, result);
+
+            // ✅ 3선승 달성 시 추가 점수 반영
+            if (isMatchWin && "승리".equals(result)) {
+                gameMapper.addBonusScore(playerId, 5);
+            }
+        }
+    }
+
+    // ✅ 점수 로직 반영 (승리 +3, 패배 -2, 무승부 0)
+    private String getOppositeResult(String result) {
+        return switch (result) {
+            case "승리" -> "패배";
+            case "패배" -> "승리";
+            default -> "무승부";
+        };
+    }
+}

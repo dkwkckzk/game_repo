@@ -1,0 +1,35 @@
+package com.care.boot.game;
+
+import com.care.boot.gamedto.PlayerStatsDTO;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api")
+public class GameController {
+    private final GameService gameService;
+
+    public GameController(GameService gameService) {
+        this.gameService = gameService;
+    }
+
+    @GetMapping("/player-score")
+    public PlayerStatsDTO getPlayerScore(@RequestParam String playerId) {
+        PlayerStatsDTO stats = gameService.getPlayerStats(playerId);
+        if (stats != null) {
+            stats.setKing(stats.getScore() >= 1000); // 👑 점수 기준으로 왕관 설정
+        }
+        return stats;
+    }
+
+    @GetMapping("/ranking")
+    public List<PlayerStatsDTO> getRanking() {
+        List<PlayerStatsDTO> ranking = gameService.getRanking();
+        for (PlayerStatsDTO stats : ranking) {
+            stats.setKing(stats.getScore() >= 1000); // 👑 랭킹에도 적용
+        }
+        return ranking;
+    }
+}
+

@@ -1,0 +1,79 @@
+<!-- JSP 페이지 (ranking.jsp) - 플레이어 랭킹 표시 및 스타일링 -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>플레이어 랭킹 🏆</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f4f8;
+            text-align: center;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        table {
+            width: 60%;
+            margin: 20px auto;
+            border-collapse: collapse;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            background-color: white;
+        }
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        tr:hover {
+            background-color: #f1f7ff;
+        }
+        .top-rank {
+            color: gold;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>🏆 플레이어 랭킹 🏆</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>순위</th>
+                <th>플레이어 ID</th>
+                <th>점수</th>
+                <th>승률 (%)</th>
+                <th>승리</th>
+                <th>패배</th>
+                <th>무승부</th>
+            </tr>
+        </thead>
+        <tbody id="rankingBody">
+            <!-- 예시 데이터 (서버에서 실제 데이터를 가져와야 함) -->
+            <tr class="top-rank">
+                <td>1</td>
+                <td>player1 👑</td>
+                <td>1200</td>
+                <td>75%</td>
+                <td>30</td>
+                <td>10</td>
+                <td>0</td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td>player2</td>
+                <td>950</td>
+                <td>65%</td>
+                <td>26</td>
+                <td>14</td>
+                <td>0</td>
+            </tr>
+            <!-- 실제 데이터로 교체 필요 -->
+        </tbody>
+    </table>
+</body>
+</html>

@@ -1,0 +1,34 @@
+package com.care.boot.game;
+
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+@Controller
+@RequestMapping("/game")  // 컨트롤러 기본 경로 설정
+public class ViewController {
+
+    /**
+     * 🏆 기본 게임 페이지 (서버와의 대결 화면)
+     */
+    @GetMapping("")
+    public String showServerGamePage() {
+        return "game/serverGame";  // "WEB-INF/views/game/serverGame.jsp"로 이동
+    }
+
+    /**
+     * 🔄 랜덤 매칭 대결 화면으로 이동
+     */
+    @GetMapping("/match")
+    public String showMatchGamePage() {
+        return "game/matchGame";  // "WEB-INF/views/game/matchGame.jsp"로 이동
+    }
+
+    /**
+     * 🏅 랭킹 화면으로 이동
+     */
+    @GetMapping("/ranking")
+    public String showRankingPage() {
+        return "game/ranking";  // "WEB-INF/views/game/ranking.jsp"로 이동
+    }
+}

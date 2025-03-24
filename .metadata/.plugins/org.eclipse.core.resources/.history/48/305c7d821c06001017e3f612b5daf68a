@@ -1,0 +1,199 @@
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ page import="com.care.boot.member.MemberDTO" %>
+<%
+    MemberDTO loginUser = (MemberDTO) session.getAttribute("loginUser");
+    if (loginUser == null) {
+        response.sendRedirect("login");
+        return;
+    }
+    String playerId = loginUser.getId();
+%>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>랜덤 매칭 가위바위보</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background-color: #f8f9fa; }
+        .container { width: 50%; margin: auto; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .player-info, .opponent-info { font-size: 22px; padding: 15px; }
+        .vs { font-size: 30px; font-weight: bold; color: #ff5733; }
+        .btn-container { margin-top: 20px; }
+        button { padding: 12px 20px; font-size: 18px; margin: 5px; cursor: pointer; border-radius: 8px; border: none; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        .player { font-weight: bold; color: #007bff; }
+        .opponent { font-weight: bold; color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 🔹 내 정보 -->
+        <div class="player-info">
+            <span class="player"><%= playerId %></span> 님의 점수: <span id="playerScore">0</span>
+        </div>
+
+        <!-- 🔹 중앙 VS 표시 -->
+        <div class="vs">🆚</div>
+
+        <!-- 🔹 상대방 정보 -->
+        <div class="opponent-info">
+            상대: <span class="opponent" id="opponent">없음</span> | 점수: <span id="opponentScore">0</span>
+        </div>
+
+        <!-- 🔹 상태 표시 -->
+        <h3>현재 상태: <span id="status">대기 중</span></h3>
+
+        <!-- 🔹 게임 결과 -->
+        <p id="result">결과가 여기에 표시됩니다.</p>
+
+        <!-- 🔹 선택 버튼 -->
+        <div class="btn-container">
+            <button id="btnScissors" onclick="sendMove('가위')" disabled>✌️ 가위</button>
+            <button id="btnRock" onclick="sendMove('바위')" disabled>✊ 바위</button>
+            <button id="btnPaper" onclick="sendMove('보')" disabled>🖐 보</button>
+        </div>
+
+        <!-- 🔹 매칭 버튼 -->
+        <button id="matchButton" onclick="startMatching()">🔄 랜덤 매칭 시작</button>
+        <button id="rematchButton" onclick="startMatching()" style="display:none;">🔄 다시 매칭</button>
+        <button id="rankingButton" onclick="goToRanking()">🏆 랭킹 보기</button>
+    </div>
+
+    <script>
+        var playerId = "<%= playerId %>";
+        var opponent = null;
+        var winCount = 0;
+        var loseCount = 0;
+        var isGameOver = false;
+        var socket = null;
+        var stompClient = null;
+
+        function connectWebSocket() {
+            if (stompClient && stompClient.connected) {
+                stompClient.disconnect();
+            }
+
+            socket = new SockJS('/game');
+            stompClient = Stomp.over(socket);
+
+            stompClient.connect({}, function () {
+                console.log("✅ WebSocket 연결 성공");
+
+                stompClient.subscribe('/topic/match/' + playerId, function (response) {
+                    opponent = response.body;
+                    if (opponent.startsWith('❌')) {
+                        document.getElementById("status").innerText = opponent;
+                    } else {
+                        document.getElementById("status").innerText = "✅ 매칭 성공!";
+                        document.getElementById("opponent").innerText = opponent;
+                        document.getElementById("matchButton").style.display = "none";
+                        document.getElementById("rematchButton").style.display = "none";
+                        enableGameButtons(true);
+                        isGameOver = false;
+                    }
+                });
+
+                stompClient.subscribe('/topic/result/' + playerId, function (response) {
+                    var gameResult = JSON.parse(response.body);
+                    document.getElementById("result").innerText =
+                        "내 선택: " + gameResult.player1Move + 
+                        " | 상대 선택: " + gameResult.player2Move + 
+                        " | 결과: " + gameResult.result;
+
+                    if (gameResult.result === "승리") {
+                        winCount++;
+                    } else if (gameResult.result === "패배") {
+                        loseCount++;
+                    }
+
+                    document.getElementById("playerScore").innerText = winCount;
+                    document.getElementById("opponentScore").innerText = loseCount;
+
+                    if (winCount === 3 || loseCount === 3) {
+                        endGame();
+                    } else {
+                        enableGameButtons(true);
+                    }
+
+                    fetchPlayerScore();
+                });
+
+                stompClient.subscribe('/topic/match/end/' + playerId, function () {
+                    endGame();
+                });
+
+                console.log("📢 WebSocket 이벤트 리스너 등록 완료");
+            });
+        }
+
+        function startMatching() {
+            if (isGameOver) {
+                resetGame();
+            }
+            document.getElementById("status").innerText = "매칭 중...";
+            stompClient.send("/app/match", {}, JSON.stringify({ playerId: playerId }));
+        }
+
+        function sendMove(move) {
+            if (isGameOver) return;
+            stompClient.send("/app/play", {}, JSON.stringify({ 
+                playerId: playerId,
+                move: move
+            }));
+            document.getElementById("status").innerText = "결과 대기 중...";
+        }
+
+        function enableGameButtons(enable) {
+            ["btnScissors", "btnRock", "btnPaper"].forEach(id => {
+                document.getElementById(id).disabled = !enable;
+            });
+        }
+
+        function endGame() {
+            if (isGameOver) return;
+            isGameOver = true;
+            enableGameButtons(false);
+
+            if (winCount === 3) {
+                document.getElementById("status").innerText = "🎉 3선승 완료!";
+            } else if (loseCount === 3) {
+                document.getElementById("status").innerText = "❌ 패배!";
+            }
+
+            document.getElementById("rematchButton").style.display = "inline";
+        }
+
+        function goToRanking() {
+            location.href = "/game/ranking";
+        }
+
+        function resetGame() {
+            winCount = 0;
+            loseCount = 0;
+            isGameOver = false;
+            opponent = null;
+            document.getElementById("playerScore").innerText = winCount;
+            document.getElementById("opponent").innerText = "없음";
+            document.getElementById("opponentScore").innerText = "0";
+            document.getElementById("result").innerText = "결과가 여기에 표시됩니다.";
+            document.getElementById("rematchButton").style.display = "none";
+        }
+
+        function fetchPlayerScore() {
+            fetch('/api/player-score?playerId=' + playerId)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById("playerScore").innerText = data.score;
+                })
+                .catch(error => console.error("점수 불러오기 실패:", error));
+        }
+
+        window.onload = function () {
+            connectWebSocket();
+            fetchPlayerScore();
+        };
+    </script>
+</body>
+</html>

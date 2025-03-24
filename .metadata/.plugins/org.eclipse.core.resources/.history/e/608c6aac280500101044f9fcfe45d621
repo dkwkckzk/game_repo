@@ -1,0 +1,67 @@
+package com.care.boot.gamedto;
+
+public class GameResult {
+    private String playerId;   // 플레이어 ID
+    private String playerMove; // 플레이어 선택
+    private String opponentId; // 상대방 ID
+    private String opponentMove; // 상대방 선택
+    private String result;     // 결과 (승/패/무승부)
+
+    private int playerWins;    // ✅ 해당 시리즈에서 플레이어가 획득한 승리 횟수
+    private int opponentWins;  // ✅ 해당 시리즈에서 상대가 획득한 승리 횟수
+    private boolean seriesFinished; // ✅ 3승 달성 여부 (시리즈 종료)
+
+    // 기본 생성자 (JSON 변환 시 필요)
+    public GameResult() {}
+
+    // 전체 필드를 포함하는 생성자
+    public GameResult(String playerId, String playerMove, String opponentId, String opponentMove, String result, int playerWins, int opponentWins, boolean seriesFinished) {
+        this.playerId = playerId;
+        this.playerMove = playerMove;
+        this.opponentId = opponentId;
+        this.opponentMove = opponentMove;
+        this.result = result;
+        this.playerWins = playerWins;
+        this.opponentWins = opponentWins;
+        this.seriesFinished = seriesFinished;
+    }
+
+    // Getter & Setter
+    public String getPlayerId() { return playerId; }
+    public void setPlayerId(String playerId) { this.playerId = playerId; }
+
+    public String getPlayerMove() { return playerMove; }
+    public void setPlayerMove(String playerMove) { this.playerMove = playerMove; }
+
+    public String getOpponentId() { return opponentId; }
+    public void setOpponentId(String opponentId) { this.opponentId = opponentId; }
+
+    public String getOpponentMove() { return opponentMove; }
+    public void setOpponentMove(String opponentMove) { this.opponentMove = opponentMove; }
+
+    public String getResult() { return result; }
+    public void setResult(String result) { this.result = result; }
+
+    public int getPlayerWins() { return playerWins; }
+    public void setPlayerWins(int playerWins) { this.playerWins = playerWins; }
+
+    public int getOpponentWins() { return opponentWins; }
+    public void setOpponentWins(int opponentWins) { this.opponentWins = opponentWins; }
+
+    public boolean isSeriesFinished() { return seriesFinished; }
+    public void setSeriesFinished(boolean seriesFinished) { this.seriesFinished = seriesFinished; }
+
+    @Override
+    public String toString() {
+        return "GameResult{" +
+                "playerId='" + playerId + '\'' +
+                ", playerMove='" + playerMove + '\'' +
+                ", opponentId='" + opponentId + '\'' +
+                ", opponentMove='" + opponentMove + '\'' +
+                ", result='" + result + '\'' +
+                ", playerWins=" + playerWins +
+                ", opponentWins=" + opponentWins +
+                ", seriesFinished=" + seriesFinished +
+                '}';
+    }
+}

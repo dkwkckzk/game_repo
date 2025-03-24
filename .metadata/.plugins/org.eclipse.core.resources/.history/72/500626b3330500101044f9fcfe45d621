@@ -1,0 +1,109 @@
+package com.care.boot.game;
+
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Controller;
+import com.care.boot.gamedto.GameDTO;
+import com.care.boot.gamedto.GameRequest;
+import java.time.LocalDateTime;
+import java.util.concurrent.ConcurrentHashMap;
+
+@Controller
+public class GameMatchController {
+    private final SimpMessagingTemplate messagingTemplate;
+    private final GameService gameService;
+    private final GameSessionManager sessionManager;
+
+    private final ConcurrentHashMap<String, String> opponentMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> gameMoves = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Integer> playerWins = new ConcurrentHashMap<>();
+
+    public GameMatchController(SimpMessagingTemplate messagingTemplate, GameService gameService, GameSessionManager sessionManager) {
+        this.messagingTemplate = messagingTemplate;
+        this.gameService = gameService;
+        this.sessionManager = sessionManager;
+    }
+
+    @MessageMapping("/match")
+    public void handleMatchRequest(GameRequest request) {
+        String playerId = request.getPlayerId();
+
+        if (sessionManager.isInQueue(playerId)) {
+            messagingTemplate.convertAndSend("/topic/match/" + playerId, "❌ 이미 대기 중입니다.");
+            return;
+        }
+
+        String opponent = sessionManager.findMatch(playerId);
+        if (opponent == null) {
+            sessionManager.addToMatchQueue(playerId);
+            messagingTemplate.convertAndSend("/topic/match/" + playerId, "❌ 상대 없음. 대기 중...");
+        } else {
+            opponentMap.put(playerId, opponent);
+            opponentMap.put(opponent, playerId);
+            playerWins.put(playerId, 0);
+            playerWins.put(opponent, 0);
+            messagingTemplate.convertAndSend("/topic/match/" + playerId, opponent);
+            messagingTemplate.convertAndSend("/topic/match/" + opponent, playerId);
+        }
+    }
+
+    @MessageMapping("/play")
+    public void playMatch(GameRequest request) {
+        String playerId = request.getPlayerId();
+        String move = request.getMove();
+
+        if (!opponentMap.containsKey(playerId)) return;
+
+        String opponent = opponentMap.get(playerId);
+        gameMoves.put(playerId, move);
+
+        // 상대방의 입력이 이미 존재하는 경우
+        if (gameMoves.containsKey(opponent)) {
+            String opponentMove = gameMoves.remove(opponent);
+            gameMoves.remove(playerId);
+            
+            String result = determineWinner(move, opponentMove);
+            String opponentResult = determineWinner(opponentMove, move);
+
+            if (result.equals("승리")) playerWins.put(playerId, playerWins.getOrDefault(playerId, 0) + 1);
+            if (result.equals("패배")) playerWins.put(opponent, playerWins.getOrDefault(opponent, 0) + 1);
+
+            // 결과 메시지 전송
+            GameDTO playerGame = new GameDTO(0, playerId, opponent, move, opponentMove, result, LocalDateTime.now());
+            GameDTO opponentGame = new GameDTO(0, opponent, playerId, opponentMove, move, opponentResult, LocalDateTime.now());
+
+            gameService.saveGameResult(playerGame);
+            gameService.saveGameResult(opponentGame);
+
+            messagingTemplate.convertAndSend("/topic/result/" + playerId, playerGame);
+            messagingTemplate.convertAndSend("/topic/result/" + opponent, opponentGame);
+
+            // 4선승 확인
+            if (playerWins.get(playerId) == 4) {
+                endGame(playerId, opponent);
+            } else if (playerWins.get(opponent) == 4) {
+                endGame(opponent, playerId);
+            }
+        }
+    }
+
+    private void endGame(String winner, String loser) {
+        opponentMap.remove(winner);
+        opponentMap.remove(loser);
+        playerWins.remove(winner);
+        playerWins.remove(loser);
+
+        messagingTemplate.convertAndSend("/topic/match/" + winner, "🎉 4선승 완료! 다시 매칭하려면 버튼을 눌러주세요.");
+        messagingTemplate.convertAndSend("/topic/match/" + loser, "❌ 상대가 4승 달성! 다시 매칭하려면 버튼을 눌러주세요.");
+    }
+
+    private String determineWinner(String move1, String move2) {
+        if (move1.equals(move2)) return "무승부";
+        if ((move1.equals("가위") && move2.equals("보")) ||
+            (move1.equals("바위") && move2.equals("가위")) ||
+            (move1.equals("보") && move2.equals("바위"))) {
+            return "승리";
+        }
+        return "패배";
+    }
+}

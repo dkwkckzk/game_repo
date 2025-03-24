@@ -1,0 +1,322 @@
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ page import="com.care.boot.member.MemberDTO" %>
+<%
+    MemberDTO loginUser = (MemberDTO) session.getAttribute("loginUser");
+    if (loginUser == null) {
+        response.sendRedirect("login");
+        return;
+    }
+    String playerId = loginUser.getId();
+%>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>랜덤 매칭 가위바위보</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500&display=swap');
+
+        body {
+            font-family: 'Noto Serif KR', serif;
+            background: url('https://www.transparenttextures.com/patterns/asfalt-light.png'), linear-gradient(to bottom, #fef6e4, #f0e3ca);
+            background-blend-mode: overlay;
+            text-align: center;
+            padding: 30px;
+            margin: 0;
+            color: #3b2f2f;
+        }
+        h2 {
+            font-size: 28px;
+            color: #4e3d30;
+            background-color: #fef4dc;
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 12px;
+            border: 3px double #b99b6b;
+            box-shadow: 0 0 10px rgba(100, 80, 40, 0.15);
+        }
+        button {
+            padding: 12px 25px;
+            font-size: 18px;
+            margin: 10px;
+            border: 2px solid #a88756;
+            border-radius: 10px;
+            background-color: #fff3c4;
+            color: #3b2f2f;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.1);
+        }
+        button:hover:not(:disabled) { background-color: #f2d694; }
+        button:disabled { background-color: #ddd2b2; cursor: not-allowed; }
+        .box {
+            background: #fffbe6;
+            padding: 25px;
+            margin: 10px;
+            border-radius: 12px;
+            border: 2px solid #ccb37d;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            min-width: 220px;
+        }
+        .game-section {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 60px;
+            margin-top: 30px;
+        }
+        #status, #result {
+            font-size: 22px;
+            margin-top: 20px;
+            font-weight: bold;
+            color: #4e3d30;
+        }
+        #endEmoji {
+            font-size: 100px;
+            margin-top: 30px;
+            display: none;
+        }
+        .move-buttons {
+            margin-top: 25px;
+        }
+        .move-buttons button {
+            background-color: #fff;
+            color: #112d4e;
+            border: 2px solid #3f72af;
+        }
+        #roundPrompt, #finalMessage {
+            position: fixed;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            font-weight: bold;
+            padding: 30px 50px;
+            border-radius: 20px;
+            z-index: 9999;
+            display: none;
+            animation: fadeInOut 2s ease-in-out;
+        }
+        #roundPrompt {
+            color: #8b5e3c;
+            background-color: rgba(255, 248, 220, 0.95);
+            border: 4px double #a88756;
+        }
+        #finalMessage {
+            font-size: 60px;
+            color: #fff;
+        }
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translate(-50%, -60%) scale(0.8); }
+            15% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+            85% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -40%) scale(0.8); }
+        }
+    </style>
+</head>
+<body>
+    <h2>📜 <span id="playerInfo"><%= playerId %></span> 님의 랜덤 매칭 모드 (점수: <span id="playerScore">0</span>) 📜</h2>
+    <div>
+        <button id="matchButton" onclick="startMatching()">🔄 랜덤 매칭 시작</button>
+        <button id="rematchButton" onclick="startMatching()" style="display:none;">🔁 다시 매칭하기</button>
+        <button id="serverMatchButton" onclick="goToServerMatch()" style="display:none;">⚔️ 서버 대결하기</button>
+        <button id="rankingButton" onclick="goToRanking()">🏆 랭킹 보기</button>
+    </div>
+    <div class="game-section">
+        <div class="box">
+            <h3>👤 내 정보</h3>
+            <p><strong>이름:</strong> <%= playerId %></p>
+            <p><strong>점수:</strong> <span id="playerScoreInBox">0</span></p>
+            <p><strong>승리 횟수:</strong> <span id="score">0</span> / 3</p>
+        </div>
+        <div><h2>⚔️ VS ⚔️</h2></div>
+        <div class="box">
+            <h3>🆚 상대 정보</h3>
+            <p><strong>이름:</strong> <span id="opponent">없음</span></p>
+            <p><strong>점수:</strong> <span id="opponentScore">0</span></p>
+            <p><strong>상대 승리 횟수:</strong> <span id="opponentWinCount">0</span></p>
+        </div>
+    </div>
+    <p id="status">현재 상황: 대기 중</p>
+    <div class="move-buttons">
+        <button id="btnScissors" onclick="sendMove('가위')" disabled>✌️ 가위</button>
+        <button id="btnRock" onclick="sendMove('바위')" disabled>✊ 바위</button>
+        <button id="btnPaper" onclick="sendMove('보')" disabled>✋ 보</button>
+    </div>
+    <p id="result">결과가 여기에 표시됩니다.</p>
+    <div id="endEmoji"></div>
+    <div id="roundPrompt"></div>
+    <div id="finalMessage"></div>
+    <script>
+        const playerId = "<%= playerId %>";
+        let stompClient;
+        let socket;
+        let opponent = null;
+        let winCount = 0;
+        let loseCount = 0;
+        let opponentWinCount = 0;
+        let isGameOver = false;
+
+        function connectWebSocket() {
+            socket = new SockJS('/game');
+            stompClient = Stomp.over(socket);
+            stompClient.connect({}, () => {
+                stompClient.subscribe('/topic/match/' + playerId, (message) => {
+                    opponent = message.body;
+                    if (opponent.startsWith('❌')) {
+                        document.getElementById("status").innerText = opponent;
+                    } else {
+                        document.getElementById("status").innerText = "✅ 매칭 성공! 상대: " + opponent;
+                        document.getElementById("opponent").innerText = opponent;
+                        document.getElementById("matchButton").style.display = "none";
+                        document.getElementById("rematchButton").style.display = "none";
+                        document.getElementById("serverMatchButton").style.display = "none";
+                        enableGameButtons(true);
+                        isGameOver = false;
+                        fetchPlayerScore();
+                        fetchOpponentScore();
+                        showPrompt("안내면 진거 가위 바위 보!");
+                    }
+                });
+
+                stompClient.subscribe('/topic/result/' + playerId, (message) => {
+                    const gameResult = JSON.parse(message.body);
+                    handleGameResult(gameResult);
+                });
+            });
+        }
+
+        function handleGameResult(gameResult) {
+            document.getElementById("result").innerText =
+                `내 선택: ${gameResult.player1Move} | 상대 선택: ${gameResult.player2Move} | 결과: ${gameResult.result}`;
+
+            if (gameResult.result === "무승부") {
+                document.getElementById("status").innerText = "🤝 무승부! 다시 선택!";
+                enableGameButtons(true);
+                return;
+            }
+
+            if (gameResult.result === "승리") winCount++;
+            else if (gameResult.result === "패배") {
+                loseCount++;
+                opponentWinCount++;
+            }
+
+            document.getElementById("score").innerText = winCount;
+            document.getElementById("opponentWinCount").innerText = opponentWinCount;
+
+            showPrompt(gameResult.result + "!", () => {
+                if (winCount === 3 || loseCount === 3) {
+                    setTimeout(endGame, 200);
+                } else {
+                    showPrompt("안내면 진거 가위 바위 보!", () => enableGameButtons(true));
+                }
+            });
+
+            fetchPlayerScore();
+            fetchOpponentScore();
+        }
+
+        function startMatching() {
+            if (!stompClient || !stompClient.connected) {
+                connectWebSocket();
+                setTimeout(() => stompClient.send("/app/match", {}, JSON.stringify({ playerId })), 500);
+            } else {
+                if (isGameOver) resetGame();
+                stompClient.send("/app/match", {}, JSON.stringify({ playerId }));
+            }
+        }
+
+        function sendMove(move) {
+            if (isGameOver) return;
+            stompClient.send("/app/play", {}, JSON.stringify({ playerId, move }));
+            document.getElementById("status").innerText = "결과 대기 중...";
+            enableGameButtons(false);
+        }
+
+        function enableGameButtons(enable) {
+            ["btnScissors", "btnRock", "btnPaper"].forEach(id => {
+                document.getElementById(id).disabled = !enable;
+            });
+        }
+
+        function showPrompt(text, callback) {
+            const prompt = document.getElementById("roundPrompt");
+            prompt.innerText = text;
+            prompt.style.display = "block";
+            setTimeout(() => {
+                prompt.style.display = "none";
+                if (callback) callback();
+            }, 1800);
+        }
+
+        function showFinalMessage(text, isWin) {
+            const finalMsg = document.getElementById("finalMessage");
+            finalMsg.innerText = text;
+            finalMsg.style.backgroundColor = isWin ? "rgba(40, 120, 70, 0.95)" : "rgba(120, 40, 40, 0.95)";
+            finalMsg.style.display = "block";
+        }
+
+        function endGame() {
+            isGameOver = true;
+            enableGameButtons(false);
+            document.getElementById("rematchButton").style.display = "inline";
+            document.getElementById("serverMatchButton").style.display = "inline";
+            document.getElementById("endEmoji").innerText = winCount === 3 ? "😄" : "😢";
+            document.getElementById("endEmoji").style.display = "block";
+            showFinalMessage(winCount === 3 ? "🎉 승자!!! 🎉" : "💥 패자!!! 💥", winCount === 3);
+        }
+
+        function resetGame() {
+            winCount = 0;
+            loseCount = 0;
+            opponentWinCount = 0;
+            isGameOver = false;
+            opponent = null;
+            document.getElementById("score").innerText = "0";
+            document.getElementById("opponentWinCount").innerText = "0";
+            document.getElementById("opponent").innerText = "없음";
+            document.getElementById("result").innerText = "결과가 여기에 표시됩니다.";
+            document.getElementById("endEmoji").style.display = "none";
+            document.getElementById("rematchButton").style.display = "none";
+            document.getElementById("serverMatchButton").style.display = "none";
+            document.getElementById("finalMessage").style.display = "none";
+        }
+
+        function fetchPlayerScore() {
+            fetch('/api/player-score?playerId=' + playerId)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById("playerScore").innerText = data.score;
+                    document.getElementById("playerScoreInBox").innerText = data.score;
+                })
+                .catch(error => console.error('점수 로드 실패:', error));
+        }
+
+        function fetchOpponentScore() {
+            if (!opponent || opponent === '없음') return;
+            fetch('/api/player-score?playerId=' + opponent)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById("opponentScore").innerText = data.score;
+                })
+                .catch(error => console.error('상대 점수 로드 실패:', error));
+        }
+
+        function goToServerMatch() {
+            location.href = "/game";
+        }
+
+        function goToRanking() {
+            location.href = "/game/ranking";
+        }
+
+        window.onload = () => {
+            connectWebSocket();
+            fetchPlayerScore();
+        };
+    </script>
+</body>
+</html>

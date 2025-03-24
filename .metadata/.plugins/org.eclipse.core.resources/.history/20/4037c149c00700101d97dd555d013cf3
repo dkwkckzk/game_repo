@@ -1,0 +1,101 @@
+package com.care.boot.game;
+
+import com.care.boot.gamedto.GameDTO;
+import com.care.boot.gamedto.PlayerStatsDTO;
+import org.springframework.stereotype.Service;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Objects;
+
+@Service
+public class GameService {
+
+    private final GameMapper gameMapper;
+
+    public GameService(GameMapper gameMapper) {
+        this.gameMapper = gameMapper;
+    }
+
+    public void saveGameResult(GameDTO playerGame, GameDTO opponentGame, boolean isMatchWin) {
+        if (Objects.isNull(playerGame.getPlayDate())) {
+            playerGame.setPlayDate(LocalDateTime.now());
+        }
+        if (Objects.isNull(opponentGame.getPlayDate())) {
+            opponentGame.setPlayDate(LocalDateTime.now());
+        }
+
+        gameMapper.insertGameResult(playerGame);
+        gameMapper.insertGameResult(opponentGame);
+
+        int playerScoreChange = calculateScoreChange(playerGame.getResult(), isMatchWin);
+        int opponentScoreChange = calculateScoreChange(opponentGame.getResult(), isMatchWin);
+
+        // ✅ 한 번만 점수 업데이트 실행
+        updatePlayerStats(playerGame.getPlayer1Id(), playerGame.getResult(), playerScoreChange);
+        updatePlayerStats(opponentGame.getPlayer1Id(), opponentGame.getResult(), opponentScoreChange);
+    }
+
+    private int calculateScoreChange(String result, boolean isMatchWin) {
+        int baseScore = switch (result) {
+            case "승리" -> 3;
+            case "패배" -> -2;
+            default -> 0;
+        };
+
+        // ✅ 3선승 보너스를 승리한 사람에게만 1회 적용
+        if (isMatchWin && result.equals("승리")) {
+            return baseScore + 5;
+        }
+        return baseScore;
+    }
+
+    private void updatePlayerStats(String playerId, String result, int scoreChange) {
+        if (!"server".equals(playerId)) {
+            PlayerStatsDTO stats = gameMapper.getPlayerStats(playerId);
+
+            // ✅ 플레이어가 없으면 추가 후 업데이트 진행
+            if (stats == null) {
+                gameMapper.createPlayerStats(playerId);
+            }
+
+            gameMapper.updatePlayerStats(playerId, result, scoreChange);
+        }
+    }
+
+    public PlayerStatsDTO getPlayerStats(String playerId) {
+        PlayerStatsDTO stats = gameMapper.getPlayerStats(playerId);
+        if (stats != null) {
+            stats.setKing(stats.getScore() >= 1000); // 👑 조건에 따라 isKing 설정
+        }
+        return stats;
+    }
+
+    public List<PlayerStatsDTO> getRanking() {
+        List<PlayerStatsDTO> list = gameMapper.getRanking();
+        for (PlayerStatsDTO stats : list) {
+            stats.setKing(stats.getScore() >= 1000); // 👑 점수 기준으로 왕관 표시
+        }
+        return list;
+    }
+
+    public List<GameDTO> getGameHistory(String playerId) {
+        return gameMapper.getGameHistory(playerId);
+    }
+
+    public boolean deleteGameRecord(int gameId) {
+        return gameMapper.deleteGameRecord(gameId) > 0;
+    }
+
+    private String getOppositeResult(String result) {
+        return switch (result) {
+            case "승리" -> "패배";
+            case "패배" -> "승리";
+            default -> "무승부";
+        };
+    }
+
+    public int getPlayerScore(String playerId) {
+        PlayerStatsDTO stats = gameMapper.getPlayerStats(playerId);
+        return (stats != null) ? stats.getScore() : 0; // ✅ 점수가 없으면 0 반환
+    }
+}

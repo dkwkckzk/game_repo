@@ -3,10 +3,10 @@ package com.care.boot.game;
 import com.care.boot.gamedto.GameDTO;
 import com.care.boot.gamedto.PlayerStatsDTO;
 import org.springframework.stereotype.Service;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 @Service
 public class GameService {
@@ -17,56 +17,86 @@ public class GameService {
         this.gameMapper = gameMapper;
     }
 
-    // 🔹 게임 결과 저장 (DB에 기록)
-    public void saveGameResult(GameDTO gameDTO) {
-        if (Objects.isNull(gameDTO.getPlayDate())) { // ✅ 더 직관적인 null 체크
-            gameDTO.setPlayDate(LocalDateTime.now());
+    public void saveGameResult(GameDTO playerGame, GameDTO opponentGame, boolean isMatchWin) {
+        if (Objects.isNull(playerGame.getPlayDate())) {
+            playerGame.setPlayDate(LocalDateTime.now());
+        }
+        if (Objects.isNull(opponentGame.getPlayDate())) {
+            opponentGame.setPlayDate(LocalDateTime.now());
         }
 
-        gameMapper.insertGameResult(gameDTO);
-        updatePlayerStats(gameDTO.getPlayer1Id(), gameDTO.getResult());
-        updatePlayerStats(gameDTO.getPlayer2Id(), getOppositeResult(gameDTO.getResult()));
+        gameMapper.insertGameResult(playerGame);
+        gameMapper.insertGameResult(opponentGame);
+
+        int playerScoreChange = calculateScoreChange(playerGame.getResult(), isMatchWin);
+        int opponentScoreChange = calculateScoreChange(opponentGame.getResult(), isMatchWin);
+
+        // ✅ 한 번만 점수 업데이트 실행
+        updatePlayerStats(playerGame.getPlayer1Id(), playerGame.getResult(), playerScoreChange);
+        updatePlayerStats(opponentGame.getPlayer1Id(), opponentGame.getResult(), opponentScoreChange);
     }
 
-    // 🔹 특정 플레이어 전적 조회
+    private int calculateScoreChange(String result, boolean isMatchWin) {
+        int baseScore = switch (result) {
+            case "승리" -> 3;
+            case "패배" -> -2;
+            default -> 0;
+        };
+
+        // ✅ 3선승 보너스를 승리한 사람에게만 1회 적용
+        if (isMatchWin && result.equals("승리")) {
+            return baseScore + 5;
+        }
+        return baseScore;
+    }
+
+    private void updatePlayerStats(String playerId, String result, int scoreChange) {
+        if (!"server".equals(playerId)) {
+            PlayerStatsDTO stats = gameMapper.getPlayerStats(playerId);
+
+            // ✅ 플레이어가 없으면 추가 후 업데이트 진행
+            if (stats == null) {
+                gameMapper.createPlayerStats(playerId);
+            }
+
+            gameMapper.updatePlayerStats(playerId, result, scoreChange);
+        }
+    }
+
     public PlayerStatsDTO getPlayerStats(String playerId) {
-        return gameMapper.getPlayerStats(playerId);
+        PlayerStatsDTO stats = gameMapper.getPlayerStats(playerId);
+        if (stats != null) {
+            stats.setKing(stats.getScore() >= 1000);  // 👑 점수 기준으로 isKing 설정
+        }
+        return stats;
     }
 
-    // 🔹 전체 랭킹 조회
     public List<PlayerStatsDTO> getRanking() {
-        return gameMapper.getRanking();
+        List<PlayerStatsDTO> list = gameMapper.getRanking();
+        for (PlayerStatsDTO stats : list) {
+            stats.setKing(stats.getScore() >= 1000);  // 👑 점수 기준으로 왕관 표시
+        }
+        return list;
     }
 
-    // 🔹 특정 플레이어의 게임 기록 조회
     public List<GameDTO> getGameHistory(String playerId) {
         return gameMapper.getGameHistory(playerId);
     }
 
-    // 🔹 특정 게임 기록 삭제
     public boolean deleteGameRecord(int gameId) {
         return gameMapper.deleteGameRecord(gameId) > 0;
     }
 
-    // 🔹 플레이어 전적 업데이트 (승/패/무승부 반영)
-    private void updatePlayerStats(String playerId, String result) {
-        if (!"server".equals(playerId)) { // ✅ 서버 기록 제외
-            Optional.ofNullable(gameMapper.getPlayerStats(playerId)) 
-                    .orElseGet(() -> {
-                        gameMapper.createPlayerStats(playerId);
-                        return gameMapper.getPlayerStats(playerId); // ✅ 생성 후 다시 조회
-                    });
-
-            gameMapper.updatePlayerStats(playerId, result);
-        }
-    }
-
-    // 🔹 상대방의 반대 결과 반환
     private String getOppositeResult(String result) {
         return switch (result) {
             case "승리" -> "패배";
             case "패배" -> "승리";
             default -> "무승부";
         };
+    }
+
+    public int getPlayerScore(String playerId) {
+        PlayerStatsDTO stats = gameMapper.getPlayerStats(playerId);
+        return (stats != null) ? stats.getScore() : 0; // ✅ 점수가 없으면 0 반환
     }
 }

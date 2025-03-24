@@ -1,0 +1,21 @@
+package com.care.boot.game;
+
+import com.care.boot.gamedto.PlayerStatsDTO;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/game")
+public class RankingController {
+    private final GameService gameService;
+
+    public RankingController(GameService gameService) {
+        this.gameService = gameService;
+    }
+
+    @GetMapping("/ranking")
+    public List<PlayerStatsDTO> getRanking() {
+        return gameService.getRanking();
+    }
+}

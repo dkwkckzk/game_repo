@@ -1,0 +1,88 @@
+package com.care.boot.game;
+
+import com.care.boot.gamedto.GameDTO;
+import com.care.boot.gamedto.PlayerStatsDTO;
+import org.springframework.stereotype.Service;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+
+@Service
+public class GameService {
+
+    private final GameMapper gameMapper;
+
+    public GameService(GameMapper gameMapper) {
+        this.gameMapper = gameMapper;
+    }
+
+    // 🔹 게임 결과 저장 (DB에 기록)
+    public void saveGameResult(GameDTO gameDTO, boolean isMatchWin) {
+        if (Objects.isNull(gameDTO.getPlayDate())) {
+            gameDTO.setPlayDate(LocalDateTime.now());
+        }
+
+        gameMapper.insertGameResult(gameDTO);
+
+        int playerScore = calculateScore(gameDTO.getResult(), isMatchWin);
+        int opponentScore = calculateScore(getOppositeResult(gameDTO.getResult()), isMatchWin);
+
+        updatePlayerScore(gameDTO.getPlayer1Id(), playerScore);
+        updatePlayerScore(gameDTO.getPlayer2Id(), opponentScore);
+    }
+
+    // 🔹 특정 플레이어 점수 조회
+    public PlayerStatsDTO getPlayerStats(String playerId) {
+        return gameMapper.getPlayerStats(playerId);
+    }
+
+    // 🔹 전체 랭킹 조회 (점수 순 정렬)
+    public List<PlayerStatsDTO> getRanking() {
+        return gameMapper.getRanking();
+    }
+
+    // 🔹 특정 플레이어의 게임 기록 조회
+    public List<GameDTO> getGameHistory(String playerId) {
+        return gameMapper.getGameHistory(playerId);
+    }
+
+    // 🔹 특정 게임 기록 삭제
+    public boolean deleteGameRecord(int gameId) {
+        return gameMapper.deleteGameRecord(gameId) > 0;
+    }
+
+    // 🔹 점수 업데이트 (DB 반영)
+    private void updatePlayerScore(String playerId, int scoreChange) {
+        if (!"server".equals(playerId)) { 
+            Optional.ofNullable(gameMapper.getPlayerStats(playerId)) 
+                    .orElseGet(() -> {
+                        gameMapper.createPlayerStats(playerId);
+                        return gameMapper.getPlayerStats(playerId);
+                    });
+
+            gameMapper.updatePlayerScore(playerId, scoreChange);
+        }
+    }
+
+    // 🔹 점수 계산 로직
+    private int calculateScore(String result, boolean isMatchWin) {
+        int score = switch (result) {
+            case "승리" -> 3;
+            case "패배" -> -2;
+            default -> 0;
+        };
+
+        // 3선승 달성 시 추가 +5점
+        return isMatchWin ? score + 5 : score;
+    }
+
+    // 🔹 반대 결과 반환
+    private String getOppositeResult(String result) {
+        return switch (result) {
+            case "승리" -> "패배";
+            case "패배" -> "승리";
+            default -> "무승부";
+        };
+    }
+}

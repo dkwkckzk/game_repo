@@ -13,7 +13,7 @@
 
     <!-- 🔹 특정 플레이어의 전적 조회 -->
     <select id="getPlayerStats" resultType="com.care.boot.gamedto.PlayerStatsDTO">
-        SELECT id, total_games, wins, losses, draws,
+        SELECT id, total_games, wins, losses, draws, score,
                CASE WHEN total_games > 0 THEN (wins * 100.0 / total_games) ELSE 0 END AS win_rate
         FROM player_stats
         WHERE id = #{playerId};
@@ -21,26 +21,27 @@
 
     <!-- 🔹 새로운 플레이어 전적 추가 (초기화) -->
     <insert id="createPlayerStats">
-        INSERT INTO player_stats (id, total_games, wins, losses, draws)
-        VALUES (#{playerId}, 0, 0, 0, 0);
+        INSERT INTO player_stats (id, total_games, wins, losses, draws, score)
+        VALUES (#{playerId}, 0, 0, 0, 0, 0);
     </insert>
 
-    <!-- 🔹 게임 결과에 따라 전적 업데이트 -->
+    <!-- 🔹 게임 결과에 따라 전적 및 점수 업데이트 -->
     <update id="updatePlayerStats">
         UPDATE player_stats
         SET total_games = total_games + 1,
             wins = wins + CASE WHEN #{result} = '승리' THEN 1 ELSE 0 END,
             losses = losses + CASE WHEN #{result} = '패배' THEN 1 ELSE 0 END,
-            draws = draws + CASE WHEN #{result} = '무승부' THEN 1 ELSE 0 END
+            draws = draws + CASE WHEN #{result} = '무승부' THEN 1 ELSE 0 END,
+            score = GREATEST(score + #{scoreChange}, 0)  <!-- ✅ 음수 방지: 최소 0 유지 -->
         WHERE id = #{playerId};
     </update>
 
-    <!-- 🔹 전체 랭킹 조회 (승리 순 정렬) -->
-    <select id="getRanking" resultType="com.care.boot.gamedto.PlayerStatsDTO">
-        SELECT id, total_games, wins, losses, draws,
-               CASE WHEN total_games > 0 THEN (wins * 100.0 / total_games) ELSE 0 END AS win_rate
-        FROM player_stats
-        ORDER BY wins DESC, win_rate DESC;
-    </select>
+    <!-- 🔹 전체 랭킹 조회 (점수 순 정렬) -->
+	<select id="getRanking" resultType="com.care.boot.gamedto.PlayerStatsDTO">
+	    SELECT id AS playerId, total_games, wins, losses, draws, score,
+	           CASE WHEN total_games > 0 THEN (wins * 100.0 / total_games) ELSE 0 END AS winRate
+	    FROM player_stats
+	    ORDER BY score DESC, wins DESC, winRate DESC;
+	</select>
 
 </mapper>

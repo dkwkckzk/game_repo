@@ -1,0 +1,210 @@
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ page import="com.care.boot.member.MemberDTO" %>
+<%
+    MemberDTO loginUser = (MemberDTO) session.getAttribute("loginUser");
+    if (loginUser == null) {
+        response.sendRedirect("login");
+        return;
+    }
+    String playerId = loginUser.getId();
+%>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>랜덤 매칭 가위바위보</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background-color: #f8f9fa; }
+        button { padding: 10px 20px; font-size: 18px; margin: 5px; cursor: pointer; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        .box { display: inline-block; background: white; padding: 20px; margin: 10px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); min-width: 200px; }
+        #result, #status, #opponent, #score { font-size: 20px; margin-top: 15px; }
+        #endEmoji { font-size: 80px; margin-top: 30px; display: none; }
+        .game-section { display: flex; justify-content: center; align-items: center; gap: 40px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h2>
+        <span id="playerInfo"><%= playerId %></span> 님의 랜덤 매칭 모드 (점수: <span id="playerScore">0</span>)
+    </h2>
+
+    <button id="matchButton" onclick="startMatching()">🔄 랜덤 매칭 시작</button>
+    <button id="rematchButton" onclick="startMatching()" style="display:none;">🔄 다시 매칭하기</button>
+    <button id="serverMatchButton" onclick="goToServerMatch()" style="display:none;">🚀 서버 대결하기</button>
+    <button id="rankingButton" onclick="goToRanking()">🏆 랭킹 보기</button>
+
+    <div class="game-section">
+        <div class="box">
+            <h3>🙋‍♂️ 내 정보</h3>
+            <p>이름: <%= playerId %></p>
+            <p>점수: <span id="playerScoreInBox">0</span></p>
+            <p>승리 횟수: <span id="score">0</span> / 3</p>
+        </div>
+        <div><h2>VS</h2></div>
+        <div class="box">
+            <h3>🆚 상대 정보</h3>
+            <p>이름: <span id="opponent">없음</span></p>
+            <p>점수: <span id="opponentScore">0</span></p>
+            <p>상대 승리 횟수: <span id="opponentWinCount">0</span></p>
+        </div>
+    </div>
+
+    <h3>현재 상태: <span id="status">대기 중</span></h3>
+
+    <div>
+        <button id="btnScissors" onclick="sendMove('가위')" disabled>✌️ 가위</button>
+        <button id="btnRock" onclick="sendMove('바위')" disabled>✊ 바위</button>
+        <button id="btnPaper" onclick="sendMove('보')" disabled>🖐 보</button>
+    </div>
+
+    <p id="result">결과가 여기에 표시됩니다.</p>
+    <div id="endEmoji"></div>
+
+    <script>
+        var playerId = "<%= playerId %>";
+        var opponent = null;
+        var winCount = 0;
+        var loseCount = 0;
+        var opponentWinCount = 0;
+        var isGameOver = false;
+        var socket = null;
+        var stompClient = null;
+
+        function connectWebSocket() {
+            if (stompClient && stompClient.connected) stompClient.disconnect();
+
+            socket = new SockJS('/game');
+            stompClient = Stomp.over(socket);
+
+            stompClient.connect({}, function () {
+                stompClient.subscribe('/topic/match/' + playerId, function (response) {
+                    opponent = response.body;
+                    if (opponent.startsWith('❌')) {
+                        document.getElementById("status").innerText = opponent;
+                    } else {
+                        document.getElementById("status").innerText = "✅ 매칭 성공! 상대: " + opponent;
+                        document.getElementById("opponent").innerText = opponent;
+                        document.getElementById("matchButton").style.display = "none";
+                        document.getElementById("rematchButton").style.display = "none";
+                        document.getElementById("serverMatchButton").style.display = "none";
+                        enableGameButtons(true);
+                        isGameOver = false;
+                        fetchOpponentScore();
+                    }
+                });
+
+                stompClient.subscribe('/topic/result/' + playerId, function (response) {
+                    var gameResult = JSON.parse(response.body);
+                    document.getElementById("result").innerText =
+                        "내 선택: " + gameResult.player1Move + " | 상대 선택: " + gameResult.player2Move + " | 결과: " + gameResult.result;
+
+                    if (gameResult.result === "승리") {
+                        winCount++;
+                    } else if (gameResult.result === "패배") {
+                        loseCount++;
+                        opponentWinCount++;
+                    }
+
+                    document.getElementById("score").innerText = winCount;
+                    document.getElementById("opponentWinCount").innerText = opponentWinCount;
+
+                    if (winCount === 3 || loseCount === 3) {
+                        endGame();
+                    } else {
+                        enableGameButtons(true);
+                    }
+
+                    fetchPlayerScore();
+                    fetchOpponentScore();
+                });
+
+                stompClient.subscribe('/topic/match/end/' + playerId, function () {
+                    endGame();
+                });
+            });
+        }
+
+        function startMatching() {
+            if (isGameOver) resetGame();
+            document.getElementById("status").innerText = "매칭 중...";
+            stompClient.send("/app/match", {}, JSON.stringify({ playerId: playerId }));
+        }
+
+        function sendMove(move) {
+            if (isGameOver) return;
+            stompClient.send("/app/play", {}, JSON.stringify({ playerId: playerId, move: move }));
+            document.getElementById("status").innerText = "결과 대기 중...";
+        }
+
+        function enableGameButtons(enable) {
+            ["btnScissors", "btnRock", "btnPaper"].forEach(id => document.getElementById(id).disabled = !enable);
+        }
+
+        function endGame() {
+            isGameOver = true;
+            enableGameButtons(false);
+            document.getElementById("rematchButton").style.display = "inline";
+            document.getElementById("serverMatchButton").style.display = "inline";
+
+            if (winCount === 3) {
+                document.getElementById("status").innerText = "🎉 3선승 완료! 다시 매칭을 선택하세요.";
+                document.getElementById("endEmoji").innerText = "😄";
+            } else {
+                document.getElementById("status").innerText = "❌ 패배! 다시 매칭을 선택하세요.";
+                document.getElementById("endEmoji").innerText = "😢";
+            }
+            document.getElementById("endEmoji").style.display = "block";
+        }
+
+        function resetGame() {
+            winCount = 0;
+            loseCount = 0;
+            opponentWinCount = 0;
+            isGameOver = false;
+            opponent = null;
+            document.getElementById("score").innerText = "0";
+            document.getElementById("opponentWinCount").innerText = "0";
+            document.getElementById("opponent").innerText = "없음";
+            document.getElementById("result").innerText = "결과가 여기에 표시됩니다.";
+            document.getElementById("endEmoji").style.display = "none";
+            document.getElementById("rematchButton").style.display = "none";
+            document.getElementById("serverMatchButton").style.display = "none";
+        }
+
+        function fetchPlayerScore() {
+            fetch('/api/player-score?playerId=' + playerId)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById("playerScore").innerText = data.score;
+                    document.getElementById("playerScoreInBox").innerText = data.score;
+                })
+                .catch(err => console.error("점수 로드 실패", err));
+        }
+
+        function fetchOpponentScore() {
+            if (!opponent || opponent === '없음') return;
+            fetch('/api/player-score?playerId=' + opponent)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById("opponentScore").innerText = data.score;
+                })
+                .catch(err => console.error("상대 점수 로드 실패", err));
+        }
+
+        function goToServerMatch() {
+            location.href = "/game";
+        }
+
+        function goToRanking() {
+            location.href = "/game/ranking";
+        }
+
+        window.onload = function () {
+            connectWebSocket();
+            fetchPlayerScore();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+package com.care.boot.game;
+
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Controller;
+import com.care.boot.gamedto.GameDTO;
+import com.care.boot.gamedto.GameRequest;
+import java.time.LocalDateTime;
+import java.util.concurrent.ConcurrentHashMap;
+
+@Controller
+public class GameMatchController {
+    private final SimpMessagingTemplate messagingTemplate;
+    private final GameService gameService;
+    private final GameSessionManager sessionManager;
+
+    private final ConcurrentHashMap<String, String> opponentMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Integer> playerWins = new ConcurrentHashMap<>();
+
+    public GameMatchController(SimpMessagingTemplate messagingTemplate, GameService gameService, GameSessionManager sessionManager) {
+        this.messagingTemplate = messagingTemplate;
+        this.gameService = gameService;
+        this.sessionManager = sessionManager;
+    }
+
+    @MessageMapping("/match")
+    public void handleMatchRequest(GameRequest request) {
+        String playerId = request.getPlayerId();
+
+        if (sessionManager.isInQueue(playerId)) {
+            messagingTemplate.convertAndSend("/topic/match/" + playerId, "❌ 이미 대기 중입니다.");
+            return;
+        }
+
+        String opponent = sessionManager.findMatch(playerId);
+        if (opponent == null) {
+            sessionManager.addToMatchQueue(playerId);
+            messagingTemplate.convertAndSend("/topic/match/" + playerId, "❌ 상대 없음. 대기 중...");
+        } else {
+            opponentMap.put(playerId, opponent);
+            opponentMap.put(opponent, playerId);
+            playerWins.put(playerId, 0);
+            playerWins.put(opponent, 0);
+            messagingTemplate.convertAndSend("/topic/match/" + playerId, opponent);
+            messagingTemplate.convertAndSend("/topic/match/" + opponent, playerId);
+        }
+    }
+
+    @MessageMapping("/play")
+    public void playMatch(GameRequest request) {
+        String playerId = request.getPlayerId();
+        String move = request.getMove();
+
+        if (!opponentMap.containsKey(playerId)) return;
+
+        String opponent = opponentMap.get(playerId);
+        String opponentMove = getRandomMove();
+        String result = determineWinner(move, opponentMove);
+
+        if (result.equals("승리")) playerWins.put(playerId, playerWins.getOrDefault(playerId, 0) + 1);
+        if (result.equals("패배")) playerWins.put(opponent, playerWins.getOrDefault(opponent, 0) + 1);
+
+        if (playerWins.get(playerId) == 4 || playerWins.get(opponent) == 4) {
+            endGame(playerId, opponent);
+        }
+    }
+
+    private void endGame(String winner, String loser) {
+        opponentMap.remove(winner);
+        opponentMap.remove(loser);
+        messagingTemplate.convertAndSend("/topic/match/" + winner, "🎉 4선승 완료! 다시 매칭됩니다...");
+        messagingTemplate.convertAndSend("/topic/match/" + loser, "❌ 상대가 4승 달성! 다시 매칭됩니다...");
+        sessionManager.addToMatchQueue(winner);
+        sessionManager.addToMatchQueue(loser);
+        handleMatchRequest(new GameRequest(winner));
+        handleMatchRequest(new GameRequest(loser));
+    }
+}

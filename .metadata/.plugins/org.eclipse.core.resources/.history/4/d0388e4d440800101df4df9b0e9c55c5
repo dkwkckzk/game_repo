@@ -1,0 +1,42 @@
+package com.care.boot.game;
+
+import com.care.boot.gamedto.PlayerStatsDTO;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api")  // API 요청 전용
+public class GameController {
+    private final GameService gameService;
+
+    public GameController(GameService gameService) {
+        this.gameService = gameService;
+    }
+
+    /**
+     * ✅ 개별 플레이어 점수 조회 API
+     */
+    @GetMapping("/player-score")
+    public PlayerStatsDTO getPlayerScore(@RequestParam String playerId) {
+        PlayerStatsDTO stats = gameService.getPlayerStats(playerId);
+        if (stats != null && stats.getScore() >= 1000) {
+            stats.setKing(true);  // 👑 점수가 1000 이상이면 왕관 표시
+        }
+        return stats;`
+    }
+
+    /**
+     * 🏅 전체 랭킹 조회 API (JSON 응답)
+     */
+    @GetMapping("/ranking")
+    public List<PlayerStatsDTO> getRanking() {
+        List<PlayerStatsDTO> ranking = gameService.getRanking();
+        for (PlayerStatsDTO stats : ranking) {
+            if (stats.getScore() >= 1000) {
+                stats.setKing(true);  // 👑 점수 기준으로 각 플레이어에 왕관 설정
+            }
+        }
+        return ranking;
+    }
+}

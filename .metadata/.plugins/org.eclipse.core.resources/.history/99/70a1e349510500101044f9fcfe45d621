@@ -1,0 +1,32 @@
+package com.care.boot.game;
+
+import java.util.List;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import com.care.boot.gamedto.GameDTO;
+import com.care.boot.gamedto.PlayerStatsDTO;
+
+@Mapper
+public interface GameMapper {
+
+    // 🔹 게임 결과 저장 (game_history 테이블)
+    void insertGameResult(GameDTO gameDTO);
+
+    // 🔹 특정 플레이어의 점수 조회
+    PlayerStatsDTO getPlayerStats(@Param("playerId") String playerId);
+
+    // 🔹 새로운 플레이어의 점수 기록 추가
+    int createPlayerStats(@Param("playerId") String playerId);
+
+    // 🔹 점수 업데이트 (승리/패배/무승부 반영)
+    int updatePlayerScore(@Param("playerId") String playerId, @Param("scoreChange") int scoreChange);
+
+    // 🔹 전체 랭킹 조회 (점수 내림차순 정렬)
+    List<PlayerStatsDTO> getRanking();
+
+    // 🔹 특정 플레이어의 게임 기록 조회 (game_history 테이블)
+    List<GameDTO> getGameHistory(@Param("playerId") String playerId);
+
+    // 🔹 특정 게임 ID의 기록 삭제
+    int deleteGameRecord(@Param("gameId") int gameId);
+}

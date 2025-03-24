@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.care.boot.game.GameMapper">
+
+    <!-- 🔹 게임 결과 저장 -->
+    <insert id="insertGameResult">
+        INSERT INTO game_history (player1_id, player2_id, player1_move, player2_move, result, play_date)
+        VALUES (#{player1Id}, #{player2Id}, #{player1Move}, #{player2Move}, #{result}, NOW());
+    </insert>
+
+    <!-- 🔹 특정 플레이어의 전적 조회 -->
+    <select id="getPlayerStats" resultType="com.care.boot.gamedto.PlayerStatsDTO">
+        SELECT id, total_games, wins, losses, draws, score,
+               CASE WHEN total_games > 0 THEN (wins * 100.0 / total_games) ELSE 0 END AS win_rate
+        FROM player_stats
+        WHERE id = #{playerId};
+    </select>
+
+    <!-- 🔹 새로운 플레이어 전적 추가 (초기화) -->
+    <insert id="createPlayerStats">
+        INSERT INTO player_stats (id, total_games, wins, losses, draws, score)
+        VALUES (#{playerId}, 0, 0, 0, 0, 0);
+    </insert>
+
+    <!-- 🔹 게임 결과에 따라 전적 및 점수 업데이트 -->
+    <update id="updatePlayerStats">
+        /* ✅ 음수 점수 방지 (SQL 주석 사용) */
+        UPDATE player_stats
+        SET total_games = total_games + 1,
+            wins = wins + CASE WHEN #{result} = '승리' THEN 1 ELSE 0 END,
+            losses = losses + CASE WHEN #{result} = '패배' THEN 1 ELSE 0 END,
+            draws = draws + CASE WHEN #{result} = '무승부' THEN 1 ELSE 0 END,
+            score = CASE 
+                WHEN (score + #{scoreChange}) < 0 THEN 0  /* ✅ 음수 점수 방지 */
+                ELSE score + #{scoreChange}
+            END
+        WHERE id = #{playerId};
+    </update>
+
+    <!-- 🔹 전체 랭킹 조회 (점수 순 정렬) -->
+    <select id="getRanking" resultType="com.care.boot.gamedto.PlayerStatsDTO">
+        SELECT id, total_games, wins, losses, draws, score,
+               CASE WHEN total_games > 0 THEN (wins * 100.0 / total_games) ELSE 0 END AS win_rate
+        FROM player_stats
+        ORDER BY score DESC, wins DESC, win_rate DESC;
+    </select>
+
+</mapper>

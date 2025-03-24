@@ -1,0 +1,129 @@
+<!-- JSP 페이지 (game.jsp) 전체 코드 통합 및 서버와의 대결 종료 버튼 추가 -->
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ page import="com.care.boot.member.MemberDTO" %>
+<%
+    MemberDTO loginUser = (MemberDTO) session.getAttribute("loginUser");
+    if (loginUser == null) {
+        response.sendRedirect("login");
+        return;
+    }
+    String playerId = loginUser.getId();
+%>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>가위바위보 게임</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background-color: #f8f9fa; }
+        button { padding: 10px 20px; font-size: 18px; margin: 5px; cursor: pointer; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #result, #status, #opponent { font-size: 20px; margin-top: 15px; }
+        .crown { color: gold; }
+    </style>
+</head>
+<body>
+    <h2><%= playerId %> 님의 가위바위보 게임 <span id="crown" style="display:none;">👑</span></h2>
+
+    <label for="modeSelect">게임 모드 선택:</label>
+    <select id="modeSelect" onchange="toggleMatchButton()">
+        <option value="server">서버와 대결</option>
+        <option value="random">랜덤 플레이어와 대결</option>
+    </select>
+
+    <button id="matchButton" onclick="startMatching()" disabled>🔄 매칭하기</button>
+    <button id="quitServerMatch" onclick="quitServerMatch()" style="display:none;">🚪 서버와의 게임 종료</button>
+
+    <div id="status">현재 상태: 대기 중</div>
+    <div>현재 상대: <span id="opponent">없음</span></div>
+
+    <button id="btnScissors" onclick="sendMove('가위')" disabled>✌️ 가위</button>
+    <button id="btnRock" onclick="sendMove('바위')" disabled>✊ 바위</button>
+    <button id="btnPaper" onclick="sendMove('보')" disabled>🖐 보</button>
+
+    <p id="result">결과가 여기에 표시됩니다.</p>
+    <p id="score">현재 점수: <span id="playerScore">0</span></p>
+
+    <script>
+        var playerId = "<%= playerId %>";
+        var opponent = null;
+        var playerScore = 0;
+        var socket = new SockJS('/game');
+        var stompClient = Stomp.over(socket);
+
+        stompClient.connect({}, function() {
+            stompClient.subscribe('/topic/match/' + playerId, function(response) {
+                opponent = response.body;
+                if (opponent.startsWith('❌')) {
+                    document.getElementById("status").innerText = opponent;
+                } else {
+                    document.getElementById("status").innerText = "게임 시작! 상대: " + opponent;
+                    document.getElementById("opponent").innerText = opponent;
+                    enableGameButtons(true);
+                }
+            });
+
+            stompClient.subscribe('/topic/result/' + playerId, function(response) {
+                var gameResult = JSON.parse(response.body);
+                document.getElementById("result").innerText =
+                    "내 선택: " + gameResult.player1Move + 
+                    " | 상대 선택: " + gameResult.player2Move + 
+                    " | 결과: " + gameResult.result;
+
+                if(opponent !== "server"){
+                    if(gameResult.result === "승리") playerScore += 3;
+                    else if(gameResult.result === "패배") playerScore -= 2;
+                }
+                document.getElementById("playerScore").innerText = playerScore;
+
+                if(playerScore >= 1000) document.getElementById("crown").style.display = 'inline';
+                else document.getElementById("crown").style.display = 'none';
+
+                document.getElementById("status").innerText = "게임 종료!";
+                enableGameButtons(false);
+            });
+        });
+
+        function toggleMatchButton() {
+            var mode = document.getElementById("modeSelect").value;
+            opponent = null;
+            document.getElementById("opponent").innerText = "없음";
+            if (mode === "random") {
+                document.getElementById("matchButton").disabled = false;
+                document.getElementById("quitServerMatch").style.display = 'none';
+                enableGameButtons(false);
+            } else {
+                document.getElementById("matchButton").disabled = true;
+                opponent = "server";
+                document.getElementById("opponent").innerText = "서버";
+                document.getElementById("quitServerMatch").style.display = 'inline';
+                enableGameButtons(true);
+            }
+        }
+
+        function startMatching() {
+            document.getElementById("status").innerText = "매칭 중...";
+            stompClient.send("/app/match", {}, JSON.stringify({ playerId: playerId }));
+        }
+
+        function sendMove(move) {
+            var mode = document.getElementById("modeSelect").value;
+            stompClient.send("/app/play", {}, JSON.stringify({ playerId: playerId, move: move, mode: mode }));
+            document.getElementById("status").innerText = "결과 대기 중...";
+        }
+
+        function quitServerMatch() {
+            opponent = null;
+            document.getElementById("status").innerText = "서버와의 게임을 종료했습니다.";
+            document.getElementById("opponent").innerText = "없음";
+            enableGameButtons(false);
+        }
+
+        function enableGameButtons(enable) {
+            ["btnScissors","btnRock","btnPaper"].forEach(id => document.getElementById(id).disabled = !enable);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+package com.care.boot.game;
+
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Controller;
+import com.care.boot.gamedto.GameDTO;
+import com.care.boot.gamedto.GameRequest;
+import java.time.LocalDateTime;
+import java.util.concurrent.ConcurrentHashMap;
+
+@Controller
+public class GameController {
+    private final SimpMessagingTemplate messagingTemplate;
+    private final GameService gameService;
+    private final GameSessionManager sessionManager;
+
+    private final ConcurrentHashMap<String, String> gameMoves = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> opponentMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Integer> playerWins = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> seriesMap = new ConcurrentHashMap<>(); // ✅ 시리즈 ID 저장
+
+    public GameController(SimpMessagingTemplate messagingTemplate, GameService gameService, GameSessionManager sessionManager) {
+        this.messagingTemplate = messagingTemplate;
+        this.gameService = gameService;
+        this.sessionManager = sessionManager;
+    }
+
+    @MessageMapping("/play")
+    public void play(GameRequest request) {
+        String playerId = request.getPlayerId();
+        String move = request.getMove();
+        String mode = request.getMode();
+        String seriesId = request.getSeriesId(); // ✅ 시리즈 ID 받아오기
+
+        System.out.println("🎮 플레이 요청: " + playerId + " | 선택: " + move + " | 모드: " + mode);
+
+        if ("server".equals(mode)) {
+            processServerMode(playerId, move);
+        } else {
+            processPlayerMode(playerId, move, seriesId);
+        }
+    }
+
+    private void processPlayerMode(String playerId, String move, String seriesId) {
+        if (!opponentMap.containsKey(playerId)) return;
+
+        String opponent = opponentMap.get(playerId);
+        gameMoves.put(playerId, move);
+
+        if (!gameMoves.containsKey(opponent)) return;
+
+        String opponentMove = gameMoves.remove(opponent);
+        String result = determineWinner(move, opponentMove);
+        String opponentResult = determineWinner(opponentMove, move);
+
+        // ✅ 각 플레이어의 승리 횟수 증가
+        if (result.equals("승리")) playerWins.put(playerId, playerWins.getOrDefault(playerId, 0) + 1);
+        if (result.equals("패배")) playerWins.put(opponent, playerWins.getOrDefault(opponent, 0) + 1);
+
+        // ✅ 게임 결과 저장
+        GameDTO playerGame = new GameDTO(0, playerId, opponent, move, opponentMove, result, LocalDateTime.now());
+        GameDTO opponentGame = new GameDTO(0, opponent, playerId, opponentMove, move, opponentResult, LocalDateTime.now());
+
+        gameService.saveGameResult(playerGame);
+        gameService.saveGameResult(opponentGame);
+
+        messagingTemplate.convertAndSend("/topic/result/" + playerId, playerGame);
+        messagingTemplate.convertAndSend("/topic/result/" + opponent, opponentGame);
+
+        // ✅ 3승이면 즉시 종료 & +5점 추가
+        if (playerWins.getOrDefault(playerId, 0) == 3) {
+            gameService.addBonusScore(playerId, 5);
+            endGame(playerId, opponent, seriesId);
+        } else if (playerWins.getOrDefault(opponent, 0) == 3) {
+            gameService.addBonusScore(opponent, 5);
+            endGame(playerId, opponent, seriesId);
+        }
+    }
+
+    private void endGame(String player1, String player2, String seriesId) {
+        playerWins.remove(player1);
+        playerWins.remove(player2);
+        seriesMap.remove(seriesId);
+        opponentMap.remove(player1);
+        opponentMap.remove(player2);
+        messagingTemplate.convertAndSend("/topic/match/" + player1, "✅ 게임 종료! 상대가 3승 달성");
+        messagingTemplate.convertAndSend("/topic/match/" + player2, "✅ 게임 종료! 상대가 3승 달성");
+    }
+
+    private String determineWinner(String move1, String move2) {
+        if (move1.equals(move2)) return "무승부";
+        if ((move1.equals("가위") && move2.equals("보")) ||
+            (move1.equals("바위") && move2.equals("가위")) ||
+            (move1.equals("보") && move2.equals("바위"))) {
+            return "승리";
+        }
+        return "패배";
+    }
+}

@@ -1,0 +1,138 @@
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ page import="com.care.boot.member.MemberDTO" %>
+<%
+    MemberDTO loginUser = (MemberDTO) session.getAttribute("loginUser");
+    if (loginUser == null) {
+        response.sendRedirect("login");
+        return;
+    }
+    String playerId = loginUser.getId();
+%>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>🎮 랜덤 매칭 가위바위보</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500&display=swap');
+
+        body {
+            font-family: 'Noto Serif KR', serif;
+            background: url('https://www.transparenttextures.com/patterns/asfalt-light.png'), linear-gradient(to bottom, #fef6e4, #f0e3ca);
+            background-blend-mode: overlay;
+            text-align: center;
+            padding: 30px;
+            margin: 0;
+            color: #3b2f2f;
+        }
+        h2 {
+            font-size: 28px;
+            color: #4e3d30;
+            background-color: #fef4dc;
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 12px;
+            border: 3px double #b99b6b;
+            box-shadow: 0 0 10px rgba(100, 80, 40, 0.15);
+        }
+        button {
+            padding: 12px 25px;
+            font-size: 18px;
+            margin: 10px;
+            border: 2px solid #a88756;
+            border-radius: 10px;
+            background-color: #fff3c4;
+            color: #3b2f2f;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.1);
+        }
+        button:hover:not(:disabled) {
+            background-color: #f2d694;
+        }
+        button:disabled {
+            background-color: #ddd2b2;
+            cursor: not-allowed;
+        }
+        .box {
+            background: #fffbe6;
+            padding: 25px;
+            margin: 10px;
+            border-radius: 12px;
+            border: 2px solid #ccb37d;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            min-width: 220px;
+        }
+        .game-section {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 60px;
+            margin-top: 30px;
+        }
+        #status, #result {
+            font-size: 22px;
+            margin-top: 20px;
+            font-weight: bold;
+            color: #4e3d30;
+        }
+        #endEmoji {
+            font-size: 100px;
+            margin-top: 30px;
+            display: none;
+            animation: pop 0.3s ease-in-out;
+        }
+        @keyframes pop {
+            0% { transform: scale(0.7); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .move-buttons {
+            margin-top: 25px;
+        }
+        .move-buttons button {
+            background-color: #fff;
+            color: #112d4e;
+            border: 2px solid #3f72af;
+        }
+    </style>
+</head>
+<body>
+    <h2>📜 <span id="playerInfo"><%= playerId %></span> 님의 랜덤 매칭 모드 (점수: <span id="playerScore">0</span>) 📜</h2>
+
+    <div>
+        <button id="matchButton" onclick="startMatching()">🔄 랜덤 매칭 시작</button>
+        <button id="rematchButton" onclick="startMatching()" style="display:none;">🔁 다시 매칭하기</button>
+        <button id="serverMatchButton" onclick="goToServerMatch()" style="display:none;">⚔️ 서버 대결하기</button>
+        <button id="rankingButton" onclick="goToRanking()">🏆 랭킹 보기</button>
+    </div>
+
+    <div class="game-section">
+        <div class="box">
+            <h3>🙋‍♂️ 내 정보</h3>
+            <p><strong>이름:</strong> <%= playerId %></p>
+            <p><strong>점수:</strong> <span id="playerScoreInBox">0</span></p>
+            <p><strong>승리 횟수:</strong> <span id="score">0</span> / 3</p>
+        </div>
+        <div><h2>⚔️ VS ⚔️</h2></div>
+        <div class="box">
+            <h3>🆚 상대 정보</h3>
+            <p><strong>이름:</strong> <span id="opponent">없음</span></p>
+            <p><strong>점수:</strong> <span id="opponentScore">0</span></p>
+            <p><strong>상대 승리 횟수:</strong> <span id="opponentWinCount">0</span></p>
+        </div>
+    </div>
+
+    <p id="status">현재 상태: 대기 중</p>
+
+    <div class="move-buttons">
+        <button id="btnScissors" onclick="sendMove('가위')" disabled>✌️ 가위</button>
+        <button id="btnRock" onclick="sendMove('바위')" disabled>✊ 바위</button>
+        <button id="btnPaper" onclick="sendMove('보')" disabled>🖐 보</button>
+    </div>
+
+    <p id="result">결과가 여기에 표시됩니다.</p>
+    <div id="endEmoji"></div>
+</body>
+</html>
