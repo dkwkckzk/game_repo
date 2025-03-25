@@ -66,7 +66,7 @@
             margin-top: 20px;
             font-size: 22px;
             color: #4e3d30;
-            border-top: 2px dashed #a08058;
+            /*border-top: 2px dashed #a08058;*/
             padding-top: 10px;
         }
         .result-box {
@@ -84,24 +84,27 @@
 </head>
 <body>
     <h2>📜 <%= playerId %> 님의 서버 대결 모드 📜</h2>
-
-    <div class="button-bar">
-        <button id="goToMatch" onclick="goToMatch()">🔄 랜덤 매칭하기</button>
-        <button id="startServerMatch" onclick="startServerMatch()">🚀 서버 대결 시작</button>
-        <button id="quitServerMatch" onclick="quitServerMatch()" style="display:none;">🚪 서버 대결 종료</button>
-    </div>
-
     <div class="status-box">
         <h3>현재 상태: <span id="status">대기 중</span></h3>
     </div>
 
+    <div class="button-bar">
+        <button id="goToMatch" onclick="goToMatch()"> 랜덤 매칭하기</button>
+        <button id="startServerMatch" onclick="startServerMatch()"> 서버 대결 시작</button>
+        <button id="quitServerMatch" onclick="quitServerMatch()" style="display:none;"> 서버 대결 종료</button>
+    </div>
+    
+    <div class="result-box" id="result">결과가 여기에 표시됩니다.</div>	
+
+    
+
     <div>
-        <button id="btnScissors" onclick="sendMove('가위')" disabled>✌️ 가위</button>
-        <button id="btnRock" onclick="sendMove('바위')" disabled>✊ 바위</button>
-        <button id="btnPaper" onclick="sendMove('보')" disabled>🖐 보</button>
+        <button id="btnScissors" onclick="sendMove('가위')" disabled> 가위</button>
+        <button id="btnRock" onclick="sendMove('바위')" disabled> 바위</button>
+        <button id="btnPaper" onclick="sendMove('보')" disabled> 보</button>
     </div>
 
-    <div class="result-box" id="result">결과가 여기에 표시됩니다.</div>
+    
 
     <script>
         var playerId = "<%= playerId %>";
