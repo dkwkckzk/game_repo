@@ -1,6 +1,8 @@
 package com.care.boot.game;
 
+import com.care.boot.gamedto.GameDTO;
 import com.care.boot.gamedto.PlayerStatsDTO;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -38,5 +40,44 @@ public class GameController {
             }
         }
         return ranking;
+    }
+
+    /**
+     * 📝 경기 결과 저장 API (DynamoDB + 전적 업데이트)
+     */
+    @PostMapping("/save-result")
+    public ResponseEntity<String> saveGameResult(@RequestBody SaveGameRequest request) {
+        gameService.saveGameResult(request.getPlayerGame(), request.getOpponentGame(), request.isMatchWin());
+        return ResponseEntity.ok("게임 결과 저장 완료");
+    }
+}
+
+class SaveGameRequest {
+    private GameDTO playerGame;
+    private GameDTO opponentGame;
+    private boolean matchWin;
+
+    public GameDTO getPlayerGame() {
+        return playerGame;
+    }
+
+    public void setPlayerGame(GameDTO playerGame) {
+        this.playerGame = playerGame;
+    }
+
+    public GameDTO getOpponentGame() {
+        return opponentGame;
+    }
+
+    public void setOpponentGame(GameDTO opponentGame) {
+        this.opponentGame = opponentGame;
+    }
+
+    public boolean isMatchWin() {
+        return matchWin;
+    }
+
+    public void setMatchWin(boolean matchWin) {
+        this.matchWin = matchWin;
     }
 }

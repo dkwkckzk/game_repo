@@ -16,7 +16,7 @@
     <version>0.0.1-SNAPSHOT</version>
     <name>boot</name>
     <description>Spring Boot 가위바위보 멀티플레이 게임</description>
-    <packaging>jar</packaging>
+    <packaging>war</packaging>
 
     <properties>
         <java.version>17</java.version>
@@ -90,6 +90,12 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+        
+        <dependency>
+		    <groupId>software.amazon.awssdk</groupId>
+		    <artifactId>dynamodb</artifactId>
+		    <version>2.25.4</version> <!-- 최신 버전 확인 가능 -->
+		</dependency>
     </dependencies>
 
     <build>

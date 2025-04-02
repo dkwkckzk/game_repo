@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 public class GameDTO {
     @JsonProperty("gameId")
-    private int gameId;
+    private Integer gameId;
 
     @JsonProperty("player1Id")
     private String player1Id;
@@ -34,7 +34,7 @@ public class GameDTO {
     public GameDTO() {}
 
     // ✅ 전체 필드를 포함하는 생성자
-    public GameDTO(int gameId, String player1Id, String player2Id, String player1Move, String player2Move, String result, LocalDateTime playDate) {
+    public GameDTO(Integer gameId, String player1Id, String player2Id, String player1Move, String player2Move, String result, LocalDateTime playDate) {
         this.gameId = gameId;
         this.player1Id = player1Id;
         this.player2Id = player2Id;
@@ -45,7 +45,7 @@ public class GameDTO {
     }
 
     // ✅ JSON 직렬화를 위한 Getter 추가
-    public int getGameId() { return gameId; }
+    public Integer getGameId() { return gameId; }
     public String getPlayer1Id() { return player1Id; }
     public String getPlayer2Id() { return player2Id; }
     public String getPlayer1Move() { return player1Move; }
@@ -54,7 +54,7 @@ public class GameDTO {
     public LocalDateTime getPlayDate() { return playDate; }
 
     // ✅ JSON 직렬화를 위한 Setter 추가
-    public void setGameId(int gameId) { this.gameId = gameId; }
+    public void setGameId(Integer gameId) { this.gameId = gameId; }
     public void setPlayer1Id(String player1Id) { this.player1Id = player1Id; }
     public void setPlayer2Id(String player2Id) { this.player2Id = player2Id; }
     public void setPlayer1Move(String player1Move) { this.player1Move = player1Move; }

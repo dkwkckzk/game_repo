@@ -21,4 +21,8 @@ public class HomeController {
 	public String footer() {
 		return "default/footer";
 	}
+	@RequestMapping("/")
+	public String root() {
+	    return "index";
+	}
 }
