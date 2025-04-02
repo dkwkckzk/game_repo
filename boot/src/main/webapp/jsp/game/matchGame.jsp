@@ -417,7 +417,7 @@
                 	
                 }
                 
-                
+                      
                 
                 else if (gameResult.result === "패배") {
                 	playerImage.src = "/images/player_die.png";

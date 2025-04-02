@@ -29,9 +29,6 @@ public class GameService {
 
     /**
      * ✅ 게임 결과를 저장한다 (DynamoDB의 game_history 테이블에 기록)
-     * @param playerGame 플레이어의 게임 정보
-     * @param opponentGame 상대방의 게임 정보
-     * @param isMatchWin 이 플레이어가 매치에서 승리했는지 여부 (추가 점수 계산용 - 현재 미사용)
      */
     public void saveGameResult(GameDTO playerGame, GameDTO opponentGame, boolean isMatchWin) {
         if (Objects.isNull(playerGame.getPlayDate())) {
@@ -64,8 +61,6 @@ public class GameService {
 
     /**
      * ✅ DynamoDB의 player_stats 테이블에서 해당 플레이어의 전적 정보를 조회한다
-     * @param playerId 조회할 플레이어 ID
-     * @return PlayerStatsDTO (점수, 승패무, 승률 포함)
      */
     public PlayerStatsDTO getPlayerStats(String playerId) {
         Map<String, AttributeValue> key = Map.of(
